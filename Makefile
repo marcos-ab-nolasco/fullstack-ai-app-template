@@ -7,10 +7,15 @@ help: ## Show this help message
 setup: ## Install dependencies
 	@echo "Installing backend dependencies with uv..."
 	cd app/backend && uv sync --extra dev
+	@echo "Creating symlink for Docker Compose .env..."
+	ln -sf ../.env infrastructure/.env
 	@echo "Setup complete!"
 
 dev-backend: ## Run backend locally
 	cd app/backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+docker-build: ## Build Docker images
+	docker compose -f infrastructure/docker-compose.yml build
 
 docker-up: ## Start Docker Compose services
 	docker compose -f infrastructure/docker-compose.yml up -d
@@ -23,6 +28,12 @@ docker-logs: ## Show Docker Compose logs
 
 docker-restart: ## Restart Docker Compose services
 	docker compose -f infrastructure/docker-compose.yml restart
+
+docker-migrate: ## Run migrations in Docker container
+	docker compose -f infrastructure/docker-compose.yml exec backend alembic upgrade head
+
+docker-migrate-create: ## Create new migration in Docker (use MESSAGE="description")
+	docker compose -f infrastructure/docker-compose.yml exec backend alembic revision --autogenerate -m "$(MESSAGE)"
 
 migrate: ## Run database migrations
 	cd app/backend && alembic upgrade head
