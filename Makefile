@@ -5,8 +5,8 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Install dependencies
-	@echo "Installing backend dependencies..."
-	cd app/backend && pip install -e ".[dev]"
+	@echo "Installing backend dependencies with uv..."
+	cd app/backend && uv sync --extra dev
 	@echo "Setup complete!"
 
 dev-backend: ## Run backend locally
