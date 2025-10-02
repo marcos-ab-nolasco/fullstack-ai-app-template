@@ -74,15 +74,9 @@ def create_refresh_token(data: dict[str, Any]) -> str:
 def decode_token(token: str) -> dict[str, Any]:
     """Decode and verify a JWT token."""
     try:
-        secret = settings.SECRET_KEY.get_secret_value()
-        print(f"DEBUG decode_token: Secret key (first 10 chars): {secret[:10]}")
-        print(f"DEBUG decode_token: Algorithm: {settings.ALGORITHM}")
-
         payload = jwt.decode(
-            token, secret, algorithms=[settings.ALGORITHM]
+            token, settings.SECRET_KEY.get_secret_value(), algorithms=[settings.ALGORITHM]
         )
-        print(f"DEBUG decode_token: Successfully decoded payload: {payload}")
         return payload
-    except JWTError as e:
-        print(f"DEBUG decode_token: JWTError - {type(e).__name__}: {e}")
+    except JWTError:
         raise ValueError("Could not validate credentials")

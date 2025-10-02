@@ -24,13 +24,6 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 
-
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint."""
-    return {"message": "Fullstack Template API", "version": "0.1.0"}
-
-
 @app.get("/health_check")
 async def health_check(check_db: bool = False) -> dict[str, str | bool]:
     """Health check endpoint to verify API is running.
@@ -57,14 +50,3 @@ async def health_check(check_db: bool = False) -> dict[str, str | bool]:
             result["error"] = str(e)
 
     return result
-
-
-# if __name__ == "__main__":
-#     import uvicorn
-
-#     uvicorn.run(
-#         "src.main:app",
-#         host=settings.BACKEND_HOST,
-#         port=settings.BACKEND_PORT,
-#         reload=settings.DEBUG,
-#     )
