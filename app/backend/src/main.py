@@ -27,6 +27,34 @@ async def root() -> dict[str, str]:
     return {"message": "Fullstack Template API", "version": "0.1.0"}
 
 
+@app.get("/health_check")
+async def health_check(check_db: bool = False) -> dict[str, str | bool]:
+    """Health check endpoint to verify API is running.
+
+    Args:
+        check_db: If True, also checks database connectivity
+    """
+    result: dict[str, str | bool] = {
+        "status": "healthy",
+        "environment": settings.ENVIRONMENT,
+    }
+
+    if check_db:
+        from sqlalchemy import text
+        from src.db.session import AsyncSessionLocal
+
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(text("SELECT 1"))
+                result["database"] = "connected"
+        except Exception as e:
+            result["status"] = "unhealthy"
+            result["database"] = "disconnected"
+            result["error"] = str(e)
+
+    return result
+
+
 # if __name__ == "__main__":
 #     import uvicorn
 
