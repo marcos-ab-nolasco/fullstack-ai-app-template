@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.hatch.version]
-path = "../version.py"
+path = "../../version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
