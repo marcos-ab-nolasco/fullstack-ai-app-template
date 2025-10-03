@@ -1,7 +1,6 @@
-from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,24 +9,11 @@ from src.core.security import decode_token
 from src.db.models.user import User
 from src.db.session import get_db
 
-
-@lru_cache
-def _get_http_bearer() -> HTTPBearer:
-    """Return cached HTTP bearer scheme."""
-
-    return HTTPBearer()
-
-
-async def get_http_bearer_credentials(
-    request: Request,
-) -> HTTPAuthorizationCredentials:
-    """Resolve bearer credentials using cached scheme."""
-
-    return await _get_http_bearer()(request)  # type: ignore[return-value]
+http_bearer_scheme = HTTPBearer()
 
 
 async def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(get_http_bearer_credentials)],
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(http_bearer_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     """Dependency to get the current authenticated user."""
