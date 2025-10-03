@@ -1,7 +1,6 @@
-from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,20 +20,7 @@ from src.schemas.user import UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-
-@lru_cache
-def _get_basic_auth_scheme() -> HTTPBasic:
-    """Return cached HTTP basic authentication scheme."""
-
-    return HTTPBasic()
-
-
-async def get_basic_auth_credentials(
-    request: Request,
-) -> HTTPBasicCredentials:
-    """Resolve basic auth credentials using cached scheme."""
-
-    return await _get_basic_auth_scheme()(request)  # type: ignore[return-value]
+basic_auth_scheme = HTTPBasic()
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -69,7 +55,7 @@ async def register(
 
 @router.post("/login", response_model=Token)
 async def login(
-    credentials: Annotated[HTTPBasicCredentials, Depends(get_basic_auth_credentials)],
+    credentials: Annotated[HTTPBasicCredentials, Depends(basic_auth_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Token:
     """Login with email and password to get access and refresh tokens."""
