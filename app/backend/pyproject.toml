@@ -37,7 +37,9 @@ dev = [
 ]
 
 [tool.hatch.version]
-path = "../../version.py"
+source = "regex"
+path = "../../VERSION"
+pattern = "^(?P<version>.+)$"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
