@@ -1,0 +1,88 @@
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  fullstack-network:
+    driver: bridge
+
+services:
+  postgres_fullstack:
+    image: postgres:${COMPOSE_POSTGRES_VERSION:-16-alpine}
+    container_name: fullstack-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-fullstack_template}
+    ports:
+      - ${COMPOSE_POSTGRES_PORTS:-127.0.0.1:5432}:${POSTGRES_PORT:-5432}
+    volumes:
+      - ${COMPOSE_POSTGRES_DATA:-postgres_data}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fullstack-network
+
+  redis_fullstack:
+    image: redis:${COMPOSE_REDIS_VERSION:-7-alpine}
+    container_name: fullstack-redis
+    mem_limit: 5G
+    restart: always
+    stop_grace_period: 10s
+    logging:
+      options:
+        max-size: 1G
+        max-file: 5
+        compress: "true"
+    command:
+      - redis-server
+      - --port ${REDIS_PORT:-6379}
+      - --requirepass ${REDIS_PASS}
+      - --maxmemory 3072mb
+      - --maxmemory-policy allkeys-lru
+    environment:
+      - TZ=America/Sao_Paulo
+    ports:
+      - ${COMPOSE_REDIS_PORTS:-127.0.0.1:6379}:${REDIS_PORT:-6379}
+    volumes:
+      - ${COMPOSE_REDIS_DATA:-redis_data}:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASS}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fullstack-network
+
+  backend:
+    build:
+      context: ../app/backend
+      dockerfile: ../../infrastructure/docker/Dockerfile.backend
+    image: fullstack-backend:${COMPOSE_BACKEND_VERSION:-latest}
+    container_name: fullstack-backend
+    env_file:
+      - ../.env
+    pull_policy: never
+    restart: always
+    mem_limit: 10G
+    stop_grace_period: 10s
+    logging:
+      options:
+        max-size: 1G
+        max-file: 5
+        compress: "true"
+    environment:
+      - TZ=America/Sao_Paulo
+    ports:
+      - ${COMPOSE_BACKEND_PORTS:-8000}:${BACKEND_PORT:-8000}
+    depends_on:
+      postgres_fullstack:
+        condition: service_healthy
+      redis_fullstack:
+        condition: service_healthy
+    networks:
+      - fullstack-network
