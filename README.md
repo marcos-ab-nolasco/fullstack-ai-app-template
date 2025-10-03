@@ -27,10 +27,10 @@ Monólito fullstack com FastAPI no backend e frontend Next.js em construção, p
 Para adicionar dependências ou rodar os serviços manualmente, consulte os demais alvos descritos no `Makefile`.
 
 ## Versionamento
-Mantemos uma única versão para todo o projeto no arquivo raiz `version.py`:
+Mantemos uma única versão para todo o projeto no arquivo raiz `VERSION`:
 
-```python
-__version__ = "0.1.0"
+```
+0.0.1
 ```
 
 Motivos da escolha:
