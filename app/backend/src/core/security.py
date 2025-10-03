@@ -1,11 +1,11 @@
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt
 from jose import JWTError, jwt
 
-from src.core.config import settings
+from src.core.config import get_settings
 
 # bcrypt cost factor (number of rounds = 2^cost)
 BCRYPT_ROUNDS = 12
@@ -44,13 +44,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
+    settings = get_settings()
 
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(
@@ -62,7 +61,8 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
 def create_refresh_token(data: dict[str, Any]) -> str:
     """Create a JWT refresh token."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    settings = get_settings()
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(
@@ -73,10 +73,11 @@ def create_refresh_token(data: dict[str, Any]) -> str:
 
 def decode_token(token: str) -> dict[str, Any]:
     """Decode and verify a JWT token."""
+    settings = get_settings()
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY.get_secret_value(), algorithms=[settings.ALGORITHM]
         )
         return payload
-    except JWTError:
-        raise ValueError("Could not validate credentials")
+    except JWTError as e:
+        raise ValueError("Could not validate credentials") from e

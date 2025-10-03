@@ -3,6 +3,8 @@
 .env.local
 .env.*.local
 infrastructure/.env
+# Keep test env file
+!**/.env.test
 
 # Python
 __pycache__/
@@ -68,3 +70,4 @@ dmypy.json
 
 # Prompts
 CLAUDE.md
+initial-chat.txt
