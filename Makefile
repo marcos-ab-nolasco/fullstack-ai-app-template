@@ -1,4 +1,4 @@
-.PHONY: help setup dev-backend docker-up docker-down docker-logs migrate lint test clean
+.PHONY: help setup dev-backend dev-frontend generate-types docker-up docker-down docker-logs migrate lint test clean
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -7,12 +7,20 @@ help: ## Show this help message
 setup: ## Install dependencies
 	@echo "Installing backend dependencies with uv..."
 	cd app/backend && uv sync --extra dev
+	@echo "Installing frontend dependencies with pnpm..."
+	cd app/frontend && pnpm install
 	@echo "Creating symlink for Docker Compose .env..."
 	ln -sf ../.env infrastructure/.env
 	@echo "Setup complete!"
 
+generate-types: ## Generate TypeScript types from OpenAPI spec
+	@./scripts/generate-types.sh
+
 dev-backend: ## Run backend locally
-	cd app/backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	cd app/backend && python run.py
+
+dev-frontend: ## Run frontend locally
+	cd app/frontend && pnpm dev
 
 docker-build: ## Build Docker images
 	docker compose -f infrastructure/docker-compose.yml build
