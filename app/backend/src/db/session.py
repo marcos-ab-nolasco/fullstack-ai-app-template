@@ -1,9 +1,15 @@
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from functools import lru_cache
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import DeclarativeBase
 
-from src.core.config import settings
+from src.core.config import get_settings
 
 
 class Base(DeclarativeBase):
@@ -12,26 +18,36 @@ class Base(DeclarativeBase):
     pass
 
 
-# Create async engine
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    future=True,
-)
+@lru_cache
+def get_engine() -> AsyncEngine:
+    """Return cached async engine instance."""
 
-# Create async session factory
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+    settings = get_settings()
+    return create_async_engine(
+        settings.DATABASE_URL,
+        echo=settings.DEBUG,
+        future=True,
+    )
+
+
+@lru_cache
+def get_async_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Return cached async session factory."""
+
+    return async_sessionmaker(
+        get_engine(),
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autocommit=False,
+        autoflush=False,
+    )
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""
-    async with AsyncSessionLocal() as session:
+
+    session_factory = get_async_sessionmaker()
+    async with session_factory() as session:
         try:
             yield session
         finally:
