@@ -12,55 +12,33 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.11-bookworm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install uv client
-        working-directory: app/backend
-        run: |
-          # Install uv (astral.sh) so we can use uv sync for reproducible installs
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-
       - name: Sync dependencies with uv
         working-directory: app/backend
-        run: |
-          # Ensure uv is available on PATH (install script writes to ~/.local/bin)
-          export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+        run: uv sync --extra dev
 
       - name: Run lint
-        run: make lint
+        run: uv run --project app/backend make lint
 
   test:
     name: Test
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.11-bookworm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install uv client
-        working-directory: app/backend
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-
       - name: Sync dependencies with uv
         working-directory: app/backend
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          uv sync --extra dev
+        run: uv sync --extra dev
 
       - name: Run tests
-        run: make test
+        run: uv run --project app/backend make test
