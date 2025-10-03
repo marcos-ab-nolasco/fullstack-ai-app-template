@@ -5,11 +5,12 @@ from src.api import auth
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.db.session import get_async_sessionmaker
+from src.version import __version__
 
 app = FastAPI(
     title="Fullstack Template API",
     description="FastAPI backend with authentication and AI integration",
-    version="0.1.0",
+    version=__version__,
     debug=get_settings().DEBUG,
     openapi_url="/api/v1/openapi.json",
     lifespan=lifespan,
