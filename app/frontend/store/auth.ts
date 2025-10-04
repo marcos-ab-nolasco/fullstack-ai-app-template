@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { components } from "@/types/api";
 import * as authApi from "@/lib/api/auth";
-import { setAuthToken, clearAuthToken } from "@/lib/api-client";
+import { setAuthToken, clearAuthToken, setRefreshTokenCallback } from "@/lib/api-client";
 
 type UserRead = components["schemas"]["UserRead"];
 type Token = components["schemas"]["Token"];
@@ -123,6 +123,10 @@ export const useAuthStore = create<AuthState>()(
         // Restore auth token when store rehydrates from localStorage
         if (state?.accessToken) {
           setAuthToken(state.accessToken);
+          // Register refresh callback for auto-refresh on 401
+          setRefreshTokenCallback(async () => {
+            await useAuthStore.getState().refreshAuth();
+          });
         }
       },
     }

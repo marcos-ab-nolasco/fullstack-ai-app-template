@@ -6,10 +6,19 @@ const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export const apiClient = createClient<paths>({ baseUrl });
 
 /**
- * API client with authentication token injection
- * Usage: import { authenticatedClient } from '@/lib/api-client'
+ * API client with authentication token injection and auto-refresh on 401
  */
 export const authenticatedClient = createClient<paths>({ baseUrl });
+
+// Store for refresh callback (set by auth store)
+let refreshTokenCallback: (() => Promise<void>) | null = null;
+
+/**
+ * Register callback to refresh token on 401
+ */
+export function setRefreshTokenCallback(callback: () => Promise<void>) {
+  refreshTokenCallback = callback;
+}
 
 /**
  * Set the authentication token for all authenticated requests
@@ -22,6 +31,23 @@ export function setAuthToken(token: string | null) {
         return request;
       },
     });
+
+    // Add response interceptor for auto-refresh on 401
+    authenticatedClient.use({
+      async onResponse({ response }) {
+        if (response.status === 401 && refreshTokenCallback) {
+          try {
+            // Try to refresh token
+            await refreshTokenCallback();
+            // Token refreshed, caller should retry the request
+          } catch (error) {
+            // Refresh failed, user will be logged out by the store
+            console.error("Token refresh failed:", error);
+          }
+        }
+        return response;
+      },
+    });
   }
 }
 
@@ -31,4 +57,5 @@ export function setAuthToken(token: string | null) {
 export function clearAuthToken() {
   // Create a new client instance without auth headers
   Object.assign(authenticatedClient, createClient<paths>({ baseUrl }));
+  refreshTokenCallback = null;
 }

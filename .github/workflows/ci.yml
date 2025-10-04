@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  lint:
-    name: Lint
+  lint-backend:
+    name: Lint Backend
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/astral-sh/uv:python3.11-bookworm
@@ -23,11 +23,51 @@ jobs:
         working-directory: app/backend
         run: uv sync --extra dev
 
-      - name: Run lint
-        run: uv run --project app/backend make lint
+      - name: Run backend lint
+        working-directory: app/backend
+        run: |
+          uv run black --check src tests --line-length 100
+          uv run ruff check src tests
+          uv run mypy src
 
-  test:
-    name: Test
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: app/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        working-directory: app/frontend
+        run: pnpm lint
+
+      - name: Run Prettier check
+        working-directory: app/frontend
+        run: pnpm format:check
+
+      - name: Run TypeScript check
+        working-directory: app/frontend
+        run: pnpm type-check
+
+  test-backend:
+    name: Test Backend
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/astral-sh/uv:python3.11-bookworm
@@ -40,5 +80,34 @@ jobs:
         working-directory: app/backend
         run: uv sync --extra dev
 
-      - name: Run tests
-        run: uv run --project app/backend make test
+      - name: Run backend tests
+        working-directory: app/backend
+        run: uv run pytest -v
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: app/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests
+        working-directory: app/frontend
+        run: pnpm test
