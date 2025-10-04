@@ -1,15 +1,15 @@
 # fullstack-next-fast-template
 
-Monólito fullstack com FastAPI no backend e frontend Next.js em construção, pensado para rodar em um único provedor com pipelines simples e integrações de IA.
+Monólito fullstack com FastAPI no backend e frontend Next.js em desenvolvimento ativo, pensado para rodar em um único provedor com pipelines simples e integrações de IA.
 
 ## Visão Geral do Stack
 - **Backend:** FastAPI (Python 3.11) com autenticação e integração assíncrona.
-- **Frontend:** Next.js (em preparo) compartilhará a mesma versão do projeto.
-- **Infra:** uv para dependências Python, Docker Compose para orquestração local, GitHub Actions para lint e testes.
+- **Frontend:** Next.js 15 com App Router, Vitest e Testing Library para testes do lado cliente.
+- **Infra:** uv para dependências Python, Docker Compose para orquestração local, GitLab CI espelhando os alvos críticos do Makefile (lint, type-check e testes).
 
 ## Primeiros Passos
-1. Copie as variáveis padrão: `cp .env.example .env` (ajuste o que precisar antes de subir).
-2. Instale dependências do backend: `make setup`.
+1. Execute `make setup` para instalar dependências, garantir o `.env` (copiado de `.env.example` se ainda não existir) e criar o symlink esperado pelo Docker Compose.
+2. Ajuste variáveis no `.env` conforme necessário.
 3. Faça o build das imagens locais: `make docker-build`.
 4. Suba os serviços: `make docker-up`.
 5. Acompanhe os logs se necessário: `make docker-logs`.
@@ -43,8 +43,8 @@ Fluxo recomendado ao preparar uma nova versão:
 3. Faça commit incluindo apenas o arquivo de versão (e eventuais mudanças relacionadas).
 4. Opcional: crie uma tag Git (`git tag vX.Y.Z && git push --tags`) para alinhar pipelines e deploy.
 
-O backend importa essa versão (via `src/version.py`) e o `pyproject.toml` usa o mesmo arquivo para empacotar. Quando o frontend estiver pronto, use o mesmo valor – por exemplo lendo o arquivo no build ou gerando um `version.ts` a partir dele.
+O backend importa essa versão (via `src/version.py`) e o `pyproject.toml` usa o mesmo arquivo para empacotar. O frontend pode consumir o mesmo valor durante o build (ex.: gerando um `version.ts` a partir do arquivo raiz).
 
 ## Próximos Passos
-- Implementar o frontend consumindo a versão compartilhada.
+- Automatizar o espelhamento da versão no frontend a partir do arquivo raiz.
 - Preparar manifestos Docker/Kubernetes reaproveitando o arquivo de versão para nomear imagens.

@@ -5,6 +5,34 @@ type UserCreate = components["schemas"]["UserCreate"];
 type UserRead = components["schemas"]["UserRead"];
 type Token = components["schemas"]["Token"];
 
+type ValidationErrorDetail = components["schemas"]["HTTPValidationError"]["detail"] | undefined;
+
+function extractErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object" && "detail" in error) {
+    const detail = (error as { detail?: unknown }).detail;
+
+    if (typeof detail === "string") {
+      return detail;
+    }
+
+    if (Array.isArray(detail)) {
+      const messages = (detail as ValidationErrorDetail)
+        ?.map((item) => (item && typeof item.msg === "string" ? item.msg : null))
+        .filter((msg): msg is string => Boolean(msg));
+
+      if (messages && messages.length) {
+        return messages.join(", ");
+      }
+    }
+  }
+
+  return fallbackMessage;
+}
+
 export interface RegisterParams {
   email: string;
   password: string;
@@ -25,7 +53,7 @@ export async function register(params: RegisterParams): Promise<UserRead> {
   });
 
   if (error) {
-    throw new Error(error.detail || "Registration failed");
+    throw new Error(extractErrorMessage(error as unknown, "Registration failed"));
   }
 
   return data;
@@ -42,7 +70,7 @@ export async function login(params: LoginParams): Promise<Token> {
   });
 
   if (error) {
-    throw new Error(error.detail || "Login failed");
+    throw new Error(extractErrorMessage(error as unknown, "Login failed"));
   }
 
   // Set token for future authenticated requests
@@ -60,7 +88,7 @@ export async function refreshToken(refreshToken: string): Promise<Token> {
   });
 
   if (error) {
-    throw new Error(error.detail || "Token refresh failed");
+    throw new Error(extractErrorMessage(error as unknown, "Token refresh failed"));
   }
 
   // Update token for future authenticated requests
@@ -85,7 +113,7 @@ export async function getCurrentUser(): Promise<UserRead> {
   const { data, error } = await authenticatedClient.GET("/auth/me");
 
   if (error) {
-    throw new Error(error.detail || "Failed to get current user");
+    throw new Error(extractErrorMessage(error as unknown, "Failed to get current user"));
   }
 
   return data;

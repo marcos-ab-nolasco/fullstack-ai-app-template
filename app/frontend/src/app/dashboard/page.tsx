@@ -46,9 +46,7 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Bem-vindo, {user?.full_name}!
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Bem-vindo, {user?.full_name}!</h2>
           <div className="space-y-2 text-gray-700">
             <p>
               <span className="font-semibold">Email:</span> {user?.email}
@@ -64,9 +62,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">
-            🎉 Autenticação funcionando!
-          </h3>
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">🎉 Autenticação funcionando!</h3>
           <p className="text-blue-800">
             Você está autenticado e visualizando uma rota protegida. O token JWT está sendo
             armazenado no localStorage e injetado automaticamente em todas as requisições.

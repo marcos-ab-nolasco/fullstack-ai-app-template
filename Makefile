@@ -1,10 +1,14 @@
-.PHONY: help setup dev-backend dev-frontend generate-types docker-up docker-down docker-logs migrate lint test clean
+.PHONY: help setup dev-backend dev-frontend generate-types docker-up docker-down docker-logs migrate lint lint-fix lint-frontend test test-frontend test-cov clean
 
 help: ## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Install dependencies
+	@if [ ! -f .env ]; then \
+		echo "Creating .env from .env.example..."; \
+		cp .env.example .env; \
+	fi
 	@echo "Installing backend dependencies with uv..."
 	cd app/backend && uv sync --extra dev
 	@echo "Installing frontend dependencies with pnpm..."
@@ -52,26 +56,53 @@ migrate-create: ## Create new migration (use MESSAGE="description")
 migrate-downgrade: ## Rollback last migration
 	cd app/backend && alembic downgrade -1
 
-lint: ## Run linting and formatting checks
+lint: ## Run linting and formatting checks (backend + frontend)
+	@echo "Linting backend..."
 	cd app/backend && black --check src tests --line-length 100
 	cd app/backend && ruff check src tests
 	cd app/backend && mypy src
+	@echo "Linting frontend..."
+	cd app/frontend && pnpm lint
+	cd app/frontend && pnpm format:check
+	cd app/frontend && pnpm type-check
 
-lint-fix: ## Fix linting issues
+lint-fix: ## Fix linting issues (backend + frontend)
+	@echo "Fixing backend lint issues..."
 	cd app/backend && black src tests --line-length 100
 	cd app/backend && ruff check --fix src tests
+	@echo "Fixing frontend lint issues..."
+	cd app/frontend && pnpm lint:fix
 
-test: ## Run tests
+lint-frontend: ## Run frontend linting only
+	cd app/frontend && pnpm lint
+	cd app/frontend && pnpm format:check
+	cd app/frontend && pnpm type-check
+
+test: ## Run all tests (backend + frontend)
+	@echo "Running backend tests..."
 	cd app/backend && pytest -v
+	@echo "Running frontend tests..."
+	cd app/frontend && pnpm test
 
-test-cov: ## Run tests with coverage
+test-frontend: ## Run frontend tests only
+	cd app/frontend && pnpm test
+
+test-cov: ## Run tests with coverage (backend + frontend)
+	@echo "Running backend tests with coverage..."
 	cd app/backend && pytest --cov=src --cov-report=html --cov-report=term
+	@echo "Running frontend tests with coverage..."
+	cd app/frontend && pnpm test:coverage
 
 clean: ## Clean cache and artifacts
+	@echo "Cleaning backend..."
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	rm -rf app/backend/htmlcov
+	@echo "Cleaning frontend..."
+	rm -rf app/frontend/.next
+	rm -rf app/frontend/out
+	rm -rf app/frontend/coverage
 	@echo "Cleanup complete!"
