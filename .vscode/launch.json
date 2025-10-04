@@ -8,27 +8,6 @@
       "program": "${workspaceFolder}/app/backend/run.py",
       "console": "integratedTerminal",
       "justMyCode": false,
-      "envFile": "${workspaceFolder}/app/backend/.env",
-      // "env": {
-      //   "PYTHONPATH": "${workspaceFolder}/app/backend"
-      // },
-      // "cwd": "${workspaceFolder}/app/backend",
     },
-    // {
-    //   "name": "Backend: pytest Debug",
-    //   "type": "debugpy",
-    //   "request": "launch",
-    //   "module": "pytest",
-    //   "args": [
-    //     "-v",
-    //     "-s"
-    //   ],
-    //   "justMyCode": true,
-    //   "cwd": "${workspaceFolder}/app/backend",
-    //   "env": {
-    //     "PYTHONPATH": "${workspaceFolder}/app/backend"
-    //   },
-    //   "console": "integratedTerminal"
-    // }
   ]
 }

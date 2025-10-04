@@ -3,7 +3,7 @@
   "info": {
     "title": "Fullstack Template API",
     "description": "FastAPI backend with authentication and AI integration",
-    "version": "0.1.2"
+    "version": "0.1.3"
   },
   "paths": {
     "/auth/register": {

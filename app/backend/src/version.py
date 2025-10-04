@@ -1,9 +1,5 @@
-"""Expose project version to backend modules."""
-
-from __future__ import annotations
-
-from importlib.metadata import version
-
-__version__ = version("backend")
+"""Backend package version."""
 
 __all__ = ["__version__"]
+
+__version__ = "0.1.3"

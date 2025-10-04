@@ -16,6 +16,10 @@ export function middleware(request: NextRequest) {
   const protectedRoutes = ["/dashboard"];
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
 
+  if (isProtectedRoute && !isPublicRoute) {
+    // TODO: enforce auth once tokens are available in middleware
+  }
+
   // For now, let client-side handle redirects
   // Middleware can be enhanced later with cookie-based token checking
 

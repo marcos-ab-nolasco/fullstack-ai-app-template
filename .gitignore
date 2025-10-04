@@ -70,4 +70,4 @@ dmypy.json
 
 # Prompts
 CLAUDE.md
-initial-chat.txt
+historic_chat/
