@@ -1,9 +1,13 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
+
+if TYPE_CHECKING:
+    from src.db.models.conversation import Conversation
 
 
 class User(Base):
@@ -23,7 +27,7 @@ class User(Base):
     )
 
     # Relationships
-    conversations: Mapped[list["Conversation"]] = relationship(  # type: ignore
+    conversations: Mapped[list["Conversation"]] = relationship(
         "Conversation", back_populates="user", cascade="all, delete-orphan"
     )
 

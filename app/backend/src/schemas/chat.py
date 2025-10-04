@@ -1,0 +1,76 @@
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+# ===== Conversation Schemas =====
+
+
+class ConversationCreate(BaseModel):
+    """Schema for creating a new conversation."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+    ai_provider: str = Field(default="openai", pattern="^(openai|anthropic|gemini|grok)$")
+    ai_model: str = Field(default="gpt-4", min_length=1, max_length=100)
+    system_prompt: str | None = Field(default=None)
+
+
+class ConversationUpdate(BaseModel):
+    """Schema for updating a conversation."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    system_prompt: str | None = Field(default=None)
+
+
+class ConversationRead(BaseModel):
+    """Schema for reading a conversation."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    title: str
+    ai_provider: str
+    ai_model: str
+    system_prompt: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationList(BaseModel):
+    """Schema for listing conversations."""
+
+    conversations: list[ConversationRead]
+    total: int
+
+
+# ===== Message Schemas =====
+
+
+class MessageCreate(BaseModel):
+    """Schema for creating a new message."""
+
+    role: str = Field(..., pattern="^(user|assistant|system)$")
+    content: str = Field(..., min_length=1)
+    tokens_used: int | None = Field(default=None)
+    meta: dict | None = Field(default=None)
+
+
+class MessageRead(BaseModel):
+    """Schema for reading a message."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    conversation_id: int
+    role: str
+    content: str
+    tokens_used: int | None
+    meta: dict | None
+    created_at: datetime
+
+
+class MessageList(BaseModel):
+    """Schema for listing messages."""
+
+    messages: list[MessageRead]
+    total: int

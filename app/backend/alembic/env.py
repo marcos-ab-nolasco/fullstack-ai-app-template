@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Load .env from project root (two levels up from alembic/)
+# This is only needed when running locally. In Docker, env vars are already injected via env_file.
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
 
 # Import Base and all models
 from src.db.session import Base
