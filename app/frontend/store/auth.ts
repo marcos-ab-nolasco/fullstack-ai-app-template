@@ -5,7 +5,6 @@ import * as authApi from "@/lib/api/auth";
 import { setAuthToken, clearAuthToken, setRefreshTokenCallback } from "@/lib/api-client";
 
 type UserRead = components["schemas"]["UserRead"];
-type Token = components["schemas"]["Token"];
 
 interface AuthState {
   // State

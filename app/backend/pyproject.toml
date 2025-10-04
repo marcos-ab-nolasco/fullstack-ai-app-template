@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "backend"
-version = "0.1.2"
+dynamic = ["version"]
 description = "FastAPI backend for fullstack template"
 requires-python = ">=3.11"
 dependencies = [
@@ -35,6 +35,9 @@ dev = [
     "mypy",
     "types-python-jose",
 ]
+
+[tool.hatch.version]
+path = "src/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
