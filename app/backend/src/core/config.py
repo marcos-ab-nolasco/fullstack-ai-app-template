@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str
 
+    # AI Providers
+    OPENAI_API_KEY: SecretStr | None = None
+    ANTHROPIC_API_KEY: SecretStr | None = None
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

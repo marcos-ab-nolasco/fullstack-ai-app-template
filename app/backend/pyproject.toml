@@ -20,6 +20,9 @@ dependencies = [
     "python-multipart",
     "redis",
     "httpx",
+    "openai",
+    "anthropic",
+    "tenacity",
 ]
 
 [project.optional-dependencies]
