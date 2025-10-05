@@ -10,11 +10,17 @@ type ConversationUpdate = components["schemas"]["ConversationUpdate"];
 type MessageRead = components["schemas"]["MessageRead"];
 type MessageCreate = components["schemas"]["MessageCreate"];
 
+// Extended message type with status
+export interface ExtendedMessage extends MessageRead {
+  status?: "sending" | "sent" | "failed";
+  error?: string;
+}
+
 interface ChatState {
   // State
   conversations: ConversationRead[];
   currentConversationId: string | null;
-  messages: MessageRead[];
+  messages: ExtendedMessage[];
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
@@ -33,6 +39,8 @@ interface ChatState {
   // Actions - Messages
   loadMessages: (conversationId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
+  retryMessage: (messageId: string) => Promise<void>;
+  removeMessage: (messageId: string) => void;
 
   // Actions - Utility
   clearError: () => void;
@@ -164,8 +172,8 @@ export const useChatStore = create<ChatState>()(
 
         set({ isSendingMessage: true, error: null });
 
-        // Optimistic update - add user message immediately
-        const optimisticMessage: MessageRead = {
+        // Optimistic update - add user message immediately with sending status
+        const optimisticMessage: ExtendedMessage = {
           id: `temp-${Date.now()}`,
           conversation_id: currentConversationId,
           role: "user",
@@ -173,6 +181,7 @@ export const useChatStore = create<ChatState>()(
           tokens_used: null,
           meta: null,
           created_at: new Date().toISOString(),
+          status: "sending",
         };
 
         set((state) => ({
@@ -186,25 +195,86 @@ export const useChatStore = create<ChatState>()(
             content,
           });
 
-          // Remove optimistic message and add real response
+          // Remove optimistic message and add real response with sent status
           set((state) => ({
             messages: [
               ...state.messages.filter((m) => m.id !== optimisticMessage.id),
-              messageResponse,
+              { ...messageResponse, status: "sent" as const },
             ],
             isSendingMessage: false,
           }));
         } catch (error) {
-          // Remove optimistic message on error
+          // Mark message as failed instead of removing it
+          const errorMessage = error instanceof Error ? error.message : "Failed to send message";
           set((state) => ({
-            messages: state.messages.filter((m) => m.id !== optimisticMessage.id),
+            messages: state.messages.map((m) =>
+              m.id === optimisticMessage.id
+                ? { ...m, status: "failed" as const, error: errorMessage }
+                : m
+            ),
             isSendingMessage: false,
+            error: errorMessage,
           }));
-
-          const message = error instanceof Error ? error.message : "Failed to send message";
-          set({ error: message });
           throw error;
         }
+      },
+
+      // Retry a failed message
+      retryMessage: async (messageId: string) => {
+        const { messages, currentConversationId } = get();
+
+        if (!currentConversationId) {
+          throw new Error("No conversation selected");
+        }
+
+        const failedMessage = messages.find((m) => m.id === messageId);
+        if (!failedMessage || failedMessage.status !== "failed") {
+          return;
+        }
+
+        // Update message status to sending
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === messageId ? { ...m, status: "sending" as const, error: undefined } : m
+          ),
+          isSendingMessage: true,
+          error: null,
+        }));
+
+        try {
+          // Send message to backend
+          const messageResponse = await chatApi.sendMessage(currentConversationId, {
+            role: "user",
+            content: failedMessage.content,
+          });
+
+          // Replace failed message with successful response
+          set((state) => ({
+            messages: [
+              ...state.messages.filter((m) => m.id !== messageId),
+              { ...messageResponse, status: "sent" as const },
+            ],
+            isSendingMessage: false,
+          }));
+        } catch (error) {
+          // Mark as failed again
+          const errorMessage = error instanceof Error ? error.message : "Failed to send message";
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.id === messageId ? { ...m, status: "failed" as const, error: errorMessage } : m
+            ),
+            isSendingMessage: false,
+            error: errorMessage,
+          }));
+          throw error;
+        }
+      },
+
+      // Remove a message (usually a failed one)
+      removeMessage: (messageId: string) => {
+        set((state) => ({
+          messages: state.messages.filter((m) => m.id !== messageId),
+        }));
       },
 
       // Clear error

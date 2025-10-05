@@ -27,6 +27,8 @@ export default function ChatPage() {
     selectConversation,
     loadMessages,
     sendMessage,
+    retryMessage,
+    removeMessage,
     clearError,
   } = useChatStore();
 
@@ -164,6 +166,8 @@ export default function ChatPage() {
         isSendingMessage={isSendingMessage}
         onSendMessage={handleSendMessage}
         onUpdateConversation={handleUpdateConversation}
+        onRetryMessage={retryMessage}
+        onRemoveMessage={removeMessage}
       />
 
       {/* Error Toast (if needed) */}

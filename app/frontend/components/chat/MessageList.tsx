@@ -2,16 +2,21 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "./MessageBubble";
-import type { components } from "@/types/api";
-
-type MessageRead = components["schemas"]["MessageRead"];
+import type { ExtendedMessage } from "@/store/chat";
 
 interface MessageListProps {
-  messages: MessageRead[];
+  messages: ExtendedMessage[];
   isLoading: boolean;
+  onRetryMessage?: (messageId: string) => void;
+  onRemoveMessage?: (messageId: string) => void;
 }
 
-export function MessageList({ messages, isLoading }: MessageListProps) {
+export function MessageList({
+  messages,
+  isLoading,
+  onRetryMessage,
+  onRemoveMessage,
+}: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -75,6 +80,10 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           content={message.content}
           timestamp={message.created_at}
           tokensUsed={message.tokens_used}
+          status={message.status}
+          error={message.error}
+          onRetry={onRetryMessage ? () => onRetryMessage(message.id) : undefined}
+          onRemove={onRemoveMessage ? () => onRemoveMessage(message.id) : undefined}
         />
       ))}
       {/* Invisible element to scroll to */}

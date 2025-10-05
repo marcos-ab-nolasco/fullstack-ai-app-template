@@ -5,18 +5,20 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { EditConversationModal } from "./EditConversationModal";
 import type { components } from "@/types/api";
+import type { ExtendedMessage } from "@/store/chat";
 
 type ConversationRead = components["schemas"]["ConversationRead"];
-type MessageRead = components["schemas"]["MessageRead"];
 type ConversationUpdate = components["schemas"]["ConversationUpdate"];
 
 interface ChatInterfaceProps {
   conversation: ConversationRead | null;
-  messages: MessageRead[];
+  messages: ExtendedMessage[];
   isLoadingMessages: boolean;
   isSendingMessage: boolean;
   onSendMessage: (content: string) => void;
   onUpdateConversation: (data: ConversationUpdate) => Promise<void>;
+  onRetryMessage?: (messageId: string) => void;
+  onRemoveMessage?: (messageId: string) => void;
 }
 
 export function ChatInterface({
@@ -26,6 +28,8 @@ export function ChatInterface({
   isSendingMessage,
   onSendMessage,
   onUpdateConversation,
+  onRetryMessage,
+  onRemoveMessage,
 }: ChatInterfaceProps) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -127,7 +131,12 @@ export function ChatInterface({
       </div>
 
       {/* Messages */}
-      <MessageList messages={messages} isLoading={isLoadingMessages} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoadingMessages}
+        onRetryMessage={onRetryMessage}
+        onRemoveMessage={onRemoveMessage}
+      />
 
       {/* Input */}
       <MessageInput
