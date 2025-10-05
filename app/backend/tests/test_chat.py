@@ -1,5 +1,6 @@
 import pytest
 from httpx import AsyncClient
+from pytest_mock import MockerFixture
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Conversation, User
@@ -173,19 +174,29 @@ async def test_delete_conversation(
 
 
 @pytest.mark.asyncio
-async def test_create_message(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+async def test_create_message_generates_ai_response(
+    client: AsyncClient,
+    test_user: User,
+    auth_headers: dict[str, str],
+    mocker: MockerFixture,
 ) -> None:
-    """Test creating a message in a conversation."""
-    # Create conversation
+    """Creating a message should persist user + assistant responses via the AI service."""
+    mock_ai_service = mocker.Mock()
+    mock_ai_service.generate_response = mocker.AsyncMock(return_value="AI response")
+    mocker.patch("src.services.chat.get_ai_service", return_value=mock_ai_service)
+
     create_response = await client.post(
         "/chat/conversations",
-        json={"title": "Chat with Messages", "ai_provider": "openai", "ai_model": "gpt-4"},
+        json={
+            "title": "Chat with Messages",
+            "ai_provider": "openai",
+            "ai_model": "gpt-4",
+            "system_prompt": "You are helpful.",
+        },
         headers=auth_headers,
     )
     conversation_id = create_response.json()["id"]
 
-    # Create message
     response = await client.post(
         f"/chat/conversations/{conversation_id}/messages",
         json={"role": "user", "content": "Hello, AI!", "tokens_used": 10, "meta": {"test": "data"}},
@@ -195,12 +206,26 @@ async def test_create_message(
     assert response.status_code == 201
     data = response.json()
     assert data["conversation_id"] == conversation_id
-    assert data["role"] == "user"
-    assert data["content"] == "Hello, AI!"
-    assert data["tokens_used"] == 10
-    assert data["meta"] == {"test": "data"}
-    assert "id" in data
-    assert "created_at" in data
+    assert data["role"] == "assistant"
+    assert data["content"] == "AI response"
+    assert data["tokens_used"] is None
+
+    mock_ai_service.generate_response.assert_awaited_once()
+    call_args = mock_ai_service.generate_response.await_args
+    # Args are: (messages, model, system_prompt)
+    assert call_args.args[1] == "gpt-4"
+    assert call_args.args[2] == "You are helpful."
+
+    messages_response = await client.get(
+        f"/chat/conversations/{conversation_id}/messages", headers=auth_headers
+    )
+
+    assert messages_response.status_code == 200
+    messages_data = messages_response.json()
+    assert messages_data["total"] == 2
+    roles = [message["role"] for message in messages_data["messages"]]
+    assert roles == ["user", "assistant"]
+    assert messages_data["messages"][1]["content"] == "AI response"
 
 
 @pytest.mark.asyncio
