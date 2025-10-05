@@ -21,7 +21,11 @@ export function MessageList({
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Small delay to ensure DOM is updated
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // Loading skeleton
@@ -72,7 +76,7 @@ export function MessageList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto p-4 chat-scrollbar">
       {messages.map((message) => (
         <MessageBubble
           key={message.id}

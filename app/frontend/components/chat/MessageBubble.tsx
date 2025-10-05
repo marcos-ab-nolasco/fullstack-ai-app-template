@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { CodeBlock } from "./CodeBlock";
 
 interface MessageBubbleProps {
   role: "user" | "assistant" | "system";
@@ -51,7 +54,7 @@ export function MessageBubble({
 
   return (
     <div
-      className={cn("flex w-full mb-4", {
+      className={cn("flex w-full mb-4 animate-fade-in-up", {
         "justify-end": isUser,
         "justify-start": !isUser,
         "justify-center": isSystem,
@@ -94,7 +97,55 @@ export function MessageBubble({
           )}
 
           {/* Message content */}
-          <div className="whitespace-pre-wrap break-words">{content}</div>
+          <div className="prose prose-sm prose-invert max-w-none">
+            {role === "assistant" ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  code: CodeBlock,
+                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
+                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                  h1: ({ children }) => <h1 className="text-xl font-bold mb-2 mt-4 first:mt-0">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-2 first:mt-0">{children}</h3>,
+                  blockquote: ({ children }) => (
+                    <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
+                      {children}
+                    </blockquote>
+                  ),
+                  a: ({ children, href }) => (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 underline"
+                    >
+                      {children}
+                    </a>
+                  ),
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-2">
+                      <table className="min-w-full border border-gray-700">{children}</table>
+                    </div>
+                  ),
+                  th: ({ children }) => (
+                    <th className="border border-gray-700 px-3 py-2 bg-gray-800 font-bold">
+                      {children}
+                    </th>
+                  ),
+                  td: ({ children }) => (
+                    <td className="border border-gray-700 px-3 py-2">{children}</td>
+                  ),
+                }}
+              >
+                {content}
+              </ReactMarkdown>
+            ) : (
+              <div className="whitespace-pre-wrap break-words">{content}</div>
+            )}
+          </div>
 
           {/* Footer with timestamp and tokens */}
           <div
