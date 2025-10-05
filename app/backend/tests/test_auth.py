@@ -91,7 +91,7 @@ async def test_get_current_user(
     data = response.json()
     assert data["email"] == test_user.email
     assert data["full_name"] == test_user.full_name
-    assert data["id"] == test_user.id
+    assert data["id"] == str(test_user.id)
 
 
 @pytest.mark.asyncio

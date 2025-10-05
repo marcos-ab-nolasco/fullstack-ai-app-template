@@ -1,16 +1,25 @@
 import asyncio
 from logging.config import fileConfig
+from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+# Load .env from project root (two levels up from alembic/)
+# This is only needed when running locally. In Docker, env vars are already injected via env_file.
+env_path = Path(__file__).parent.parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+
 # Import Base and all models
 from src.db.session import Base
-from src.db.models.user import User  # noqa: F401
-from src.core.config import settings
+from src.db.models import User, Conversation, Message  # noqa: F401
+from src.core.config import get_settings
+settings = get_settings()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

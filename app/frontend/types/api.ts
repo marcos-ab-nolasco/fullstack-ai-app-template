@@ -104,6 +104,85 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/chat/conversations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Conversations
+     * @description List all conversations for the current user.
+     */
+    get: operations["list_conversations_chat_conversations_get"];
+    put?: never;
+    /**
+     * Create Conversation
+     * @description Create a new conversation.
+     */
+    post: operations["create_conversation_chat_conversations_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/chat/conversations/{conversation_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Conversation
+     * @description Get a conversation by ID.
+     */
+    get: operations["get_conversation_chat_conversations__conversation_id__get"];
+    put?: never;
+    post?: never;
+    /**
+     * Delete Conversation
+     * @description Delete a conversation.
+     */
+    delete: operations["delete_conversation_chat_conversations__conversation_id__delete"];
+    options?: never;
+    head?: never;
+    /**
+     * Update Conversation
+     * @description Update a conversation.
+     */
+    patch: operations["update_conversation_chat_conversations__conversation_id__patch"];
+    trace?: never;
+  };
+  "/chat/conversations/{conversation_id}/messages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Messages
+     * @description List all messages in a conversation.
+     */
+    get: operations["list_messages_chat_conversations__conversation_id__messages_get"];
+    put?: never;
+    /**
+     * Create Message
+     * @description Create a new message in a conversation.
+     *
+     *     Note: In Phase 3, this only stores the message without AI response.
+     *     AI integration will be added in Phase 4.
+     */
+    post: operations["create_message_chat_conversations__conversation_id__messages_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/health_check": {
     parameters: {
       query?: never;
@@ -131,10 +210,141 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /**
+     * ConversationCreate
+     * @description Schema for creating a new conversation.
+     */
+    ConversationCreate: {
+      /** Title */
+      title: string;
+      /**
+       * Ai Provider
+       * @default openai
+       */
+      ai_provider: string;
+      /**
+       * Ai Model
+       * @default gpt-4
+       */
+      ai_model: string;
+      /** System Prompt */
+      system_prompt?: string | null;
+    };
+    /**
+     * ConversationList
+     * @description Schema for listing conversations.
+     */
+    ConversationList: {
+      /** Conversations */
+      conversations: components["schemas"]["ConversationRead"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * ConversationRead
+     * @description Schema for reading a conversation.
+     */
+    ConversationRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+      /** Title */
+      title: string;
+      /** Ai Provider */
+      ai_provider: string;
+      /** Ai Model */
+      ai_model: string;
+      /** System Prompt */
+      system_prompt: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ConversationUpdate
+     * @description Schema for updating a conversation.
+     */
+    ConversationUpdate: {
+      /** Title */
+      title?: string | null;
+      /** System Prompt */
+      system_prompt?: string | null;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
+    };
+    /**
+     * MessageCreate
+     * @description Schema for creating a new message.
+     */
+    MessageCreate: {
+      /** Role */
+      role: string;
+      /** Content */
+      content: string;
+      /** Tokens Used */
+      tokens_used?: number | null;
+      /** Meta */
+      meta?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * MessageList
+     * @description Schema for listing messages.
+     */
+    MessageList: {
+      /** Messages */
+      messages: components["schemas"]["MessageRead"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * MessageRead
+     * @description Schema for reading a message.
+     */
+    MessageRead: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Conversation Id
+       * Format: uuid
+       */
+      conversation_id: string;
+      /** Role */
+      role: string;
+      /** Content */
+      content: string;
+      /** Tokens Used */
+      tokens_used: number | null;
+      /** Meta */
+      meta: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
     };
     /**
      * RefreshTokenRequest
@@ -186,8 +396,11 @@ export interface components {
       email: string;
       /** Full Name */
       full_name?: string | null;
-      /** Id */
-      id: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
       /**
        * Created At
        * Format: date-time
@@ -341,6 +554,220 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["UserRead"];
+        };
+      };
+    };
+  };
+  list_conversations_chat_conversations_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationList"];
+        };
+      };
+    };
+  };
+  create_conversation_chat_conversations_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConversationCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationRead"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_conversation_chat_conversations__conversation_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationRead"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_conversation_chat_conversations__conversation_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_conversation_chat_conversations__conversation_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConversationUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConversationRead"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_messages_chat_conversations__conversation_id__messages_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageList"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  create_message_chat_conversations__conversation_id__messages_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        conversation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MessageCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MessageRead"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

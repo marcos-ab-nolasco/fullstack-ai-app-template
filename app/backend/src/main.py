@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import auth
+from src.api import auth, chat
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.db.session import get_async_sessionmaker
@@ -27,6 +27,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(chat.router)
 
 
 @app.get("/health_check")

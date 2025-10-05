@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -19,7 +20,7 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     """Schema for reading user data."""
 
-    id: int
+    id: UUID
     created_at: datetime
     updated_at: datetime
 
