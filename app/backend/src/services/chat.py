@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Conversation, Message
 from src.schemas.chat import ConversationCreate, ConversationUpdate, MessageCreate
+from src.services.ai import get_ai_service
 
 
 async def get_conversation_by_id(
@@ -179,10 +180,10 @@ async def create_message(
     Raises:
         HTTPException: 404 if conversation not found, 403 if not authorized
     """
-    # Verify user has access to conversation
-    await get_conversation_by_id(db, conversation_id, user_id)
+    # Verify user has access to conversation and get full record
+    conversation = await get_conversation_by_id(db, conversation_id, user_id)
 
-    new_message = Message(
+    user_message = Message(
         conversation_id=conversation_id,
         role=message_data.role,
         content=message_data.content,
@@ -190,8 +191,42 @@ async def create_message(
         meta=message_data.meta,
     )
 
-    db.add(new_message)
+    db.add(user_message)
     await db.commit()
-    await db.refresh(new_message)
+    await db.refresh(user_message)
 
-    return new_message
+    messages_history = await get_conversation_messages(db, conversation_id, user_id)
+    ai_messages = [{"role": msg.role, "content": msg.content} for msg in messages_history]
+
+    try:
+        ai_service = get_ai_service(conversation.ai_provider)
+        ai_response = await ai_service.generate_response(
+            ai_messages,
+            conversation.ai_model,
+            conversation.system_prompt,
+        )
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 - convert unexpected errors to HTTPException
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to generate AI response: {exc}",
+        ) from exc
+
+    assistant_message = Message(
+        conversation_id=conversation_id,
+        role="assistant",
+        content=ai_response,
+        tokens_used=None,
+    )
+
+    db.add(assistant_message)
+    await db.commit()
+    await db.refresh(assistant_message)
+
+    return assistant_message
