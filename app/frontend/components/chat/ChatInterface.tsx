@@ -64,9 +64,7 @@ export function ChatInterface({
               d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
             />
           </svg>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            Bem-vindo ao Chat com IA
-          </h3>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Bem-vindo ao Chat com IA</h3>
           <p className="text-gray-600 mb-1">
             Selecione uma conversa na barra lateral ou crie uma nova
           </p>
@@ -84,9 +82,7 @@ export function ChatInterface({
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold text-gray-900 truncate">
-              {conversation.title}
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-900 truncate">{conversation.title}</h2>
             <div className="flex items-center gap-3 mt-1">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -95,12 +91,15 @@ export function ChatInterface({
                 </svg>
                 {conversation.ai_provider}
               </span>
-              <span className="text-xs text-gray-500 font-mono">
-                {conversation.ai_model}
-              </span>
+              <span className="text-xs text-gray-500 font-mono">{conversation.ai_model}</span>
               {conversation.system_prompt && (
                 <span className="inline-flex items-center text-xs text-gray-500">
-                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="w-3 h-3 mr-1"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -142,9 +141,7 @@ export function ChatInterface({
       <MessageInput
         onSend={onSendMessage}
         disabled={isSendingMessage || isLoadingMessages}
-        placeholder={
-          isSendingMessage ? "Aguardando resposta..." : "Digite sua mensagem..."
-        }
+        placeholder={isSendingMessage ? "Aguardando resposta..." : "Digite sua mensagem..."}
       />
 
       {/* Edit Modal */}

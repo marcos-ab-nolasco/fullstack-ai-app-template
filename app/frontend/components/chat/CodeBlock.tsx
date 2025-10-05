@@ -42,9 +42,7 @@ export function CodeBlock({ inline, className, children, ...props }: CodeBlockPr
     <div className="relative group my-4">
       {/* Language badge and copy button */}
       <div className="flex items-center justify-between bg-gray-800 px-4 py-2 rounded-t-lg border-b border-gray-700">
-        {language && (
-          <span className="text-xs font-mono text-gray-400 uppercase">{language}</span>
-        )}
+        {language && <span className="text-xs font-mono text-gray-400 uppercase">{language}</span>}
         <button
           onClick={handleCopy}
           className="ml-auto px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded text-xs font-medium transition-colors flex items-center gap-2"

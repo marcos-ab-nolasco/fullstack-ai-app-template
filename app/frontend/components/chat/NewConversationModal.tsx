@@ -178,10 +178,7 @@ export function NewConversationModal({
 
           {/* System Prompt */}
           <div>
-            <label
-              htmlFor="system_prompt"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="system_prompt" className="block text-sm font-medium text-gray-700 mb-1">
               Prompt do Sistema (opcional)
             </label>
             <textarea

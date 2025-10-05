@@ -120,16 +120,13 @@ export async function deleteConversation(conversationId: string): Promise<void> 
  * Get all messages in a conversation
  */
 export async function getMessages(conversationId: string): Promise<MessageList> {
-  const response = await authenticatedClient.GET(
-    "/chat/conversations/{conversation_id}/messages",
-    {
-      params: {
-        path: {
-          conversation_id: conversationId,
-        },
+  const response = await authenticatedClient.GET("/chat/conversations/{conversation_id}/messages", {
+    params: {
+      path: {
+        conversation_id: conversationId,
       },
-    }
-  );
+    },
+  });
 
   if (response.error) {
     throw new Error(formatErrorMessage(response.error.detail, "Failed to get messages"));

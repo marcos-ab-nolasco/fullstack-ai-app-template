@@ -33,10 +33,7 @@ export function MessageList({
     return (
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}
-          >
+          <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
             <div className="animate-pulse">
               <div
                 className={`h-16 rounded-lg ${

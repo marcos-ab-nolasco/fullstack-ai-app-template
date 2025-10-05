@@ -8,7 +8,6 @@ type ConversationRead = components["schemas"]["ConversationRead"];
 type ConversationCreate = components["schemas"]["ConversationCreate"];
 type ConversationUpdate = components["schemas"]["ConversationUpdate"];
 type MessageRead = components["schemas"]["MessageRead"];
-type MessageCreate = components["schemas"]["MessageCreate"];
 
 // Extended message type with status
 export interface ExtendedMessage extends MessageRead {
@@ -124,9 +123,7 @@ export const useChatStore = create<ChatState>()(
               conversations: newConversations,
               // If deleting current conversation, clear selection
               currentConversationId:
-                state.currentConversationId === conversationId
-                  ? null
-                  : state.currentConversationId,
+                state.currentConversationId === conversationId ? null : state.currentConversationId,
               messages: state.currentConversationId === conversationId ? [] : state.messages,
             };
           });

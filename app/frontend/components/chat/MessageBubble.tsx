@@ -107,9 +107,15 @@ export function MessageBubble({
                   ul: ({ children }) => <ul className="list-disc ml-4 mb-2">{children}</ul>,
                   ol: ({ children }) => <ol className="list-decimal ml-4 mb-2">{children}</ol>,
                   li: ({ children }) => <li className="mb-1">{children}</li>,
-                  h1: ({ children }) => <h1 className="text-xl font-bold mb-2 mt-4 first:mt-0">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-2 first:mt-0">{children}</h3>,
+                  h1: ({ children }) => (
+                    <h1 className="text-xl font-bold mb-2 mt-4 first:mt-0">{children}</h1>
+                  ),
+                  h2: ({ children }) => (
+                    <h2 className="text-lg font-bold mb-2 mt-3 first:mt-0">{children}</h2>
+                  ),
+                  h3: ({ children }) => (
+                    <h3 className="text-base font-bold mb-2 mt-2 first:mt-0">{children}</h3>
+                  ),
                   blockquote: ({ children }) => (
                     <blockquote className="border-l-4 border-gray-600 pl-4 italic my-2">
                       {children}

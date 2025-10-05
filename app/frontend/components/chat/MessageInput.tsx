@@ -94,8 +94,13 @@ export function MessageInput({
         </button>
       </div>
       <p className="text-xs text-gray-500 mt-2">
-        Pressione <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd> para enviar,{" "}
-        <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Shift + Enter</kbd> para nova linha
+        Pressione{" "}
+        <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">Enter</kbd>{" "}
+        para enviar,{" "}
+        <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs">
+          Shift + Enter
+        </kbd>{" "}
+        para nova linha
       </p>
     </div>
   );
