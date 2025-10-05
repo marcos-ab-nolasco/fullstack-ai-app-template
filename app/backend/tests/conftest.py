@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 root_path = Path(__file__).parent
 print(f"Loading test environment from: {root_path / '.env.test'}")
-load_dotenv(root_path / ".env.test", override=True)
+load_dotenv(root_path / ".env.test", override=False)  # CI env vars take precedence
 
 # Now safe to import from src (after env loaded)
 import asyncio  # noqa: E402

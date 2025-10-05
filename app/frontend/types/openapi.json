@@ -180,7 +180,7 @@
             "name": "conversation_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer", "title": "Conversation Id" }
+            "schema": { "type": "string", "format": "uuid", "title": "Conversation Id" }
           }
         ],
         "responses": {
@@ -211,7 +211,7 @@
             "name": "conversation_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer", "title": "Conversation Id" }
+            "schema": { "type": "string", "format": "uuid", "title": "Conversation Id" }
           }
         ],
         "requestBody": {
@@ -248,7 +248,7 @@
             "name": "conversation_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer", "title": "Conversation Id" }
+            "schema": { "type": "string", "format": "uuid", "title": "Conversation Id" }
           }
         ],
         "responses": {
@@ -276,7 +276,7 @@
             "name": "conversation_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer", "title": "Conversation Id" }
+            "schema": { "type": "string", "format": "uuid", "title": "Conversation Id" }
           }
         ],
         "responses": {
@@ -307,7 +307,7 @@
             "name": "conversation_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "integer", "title": "Conversation Id" }
+            "schema": { "type": "string", "format": "uuid", "title": "Conversation Id" }
           }
         ],
         "requestBody": {
@@ -418,8 +418,8 @@
       },
       "ConversationRead": {
         "properties": {
-          "id": { "type": "integer", "title": "Id" },
-          "user_id": { "type": "integer", "title": "User Id" },
+          "id": { "type": "string", "format": "uuid", "title": "Id" },
+          "user_id": { "type": "string", "format": "uuid", "title": "User Id" },
           "title": { "type": "string", "title": "Title" },
           "ai_provider": { "type": "string", "title": "Ai Provider" },
           "ai_model": { "type": "string", "title": "Ai Model" },
@@ -504,8 +504,8 @@
       },
       "MessageRead": {
         "properties": {
-          "id": { "type": "integer", "title": "Id" },
-          "conversation_id": { "type": "integer", "title": "Conversation Id" },
+          "id": { "type": "string", "format": "uuid", "title": "Id" },
+          "conversation_id": { "type": "string", "format": "uuid", "title": "Conversation Id" },
           "role": { "type": "string", "title": "Role" },
           "content": { "type": "string", "title": "Content" },
           "tokens_used": {
@@ -570,7 +570,7 @@
             "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Full Name"
           },
-          "id": { "type": "integer", "title": "Id" },
+          "id": { "type": "string", "format": "uuid", "title": "Id" },
           "created_at": { "type": "string", "format": "date-time", "title": "Created At" },
           "updated_at": { "type": "string", "format": "date-time", "title": "Updated At" }
         },

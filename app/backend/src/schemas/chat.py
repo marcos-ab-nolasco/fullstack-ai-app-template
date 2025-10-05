@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,8 +27,8 @@ class ConversationRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     title: str
     ai_provider: str
     ai_model: str
@@ -60,8 +61,8 @@ class MessageRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
-    conversation_id: int
+    id: UUID
+    conversation_id: UUID
     role: str
     content: str
     tokens_used: int | None

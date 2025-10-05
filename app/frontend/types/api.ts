@@ -245,10 +245,16 @@ export interface components {
      * @description Schema for reading a conversation.
      */
     ConversationRead: {
-      /** Id */
-      id: number;
-      /** User Id */
-      user_id: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
       /** Title */
       title: string;
       /** Ai Provider */
@@ -314,10 +320,16 @@ export interface components {
      * @description Schema for reading a message.
      */
     MessageRead: {
-      /** Id */
-      id: number;
-      /** Conversation Id */
-      conversation_id: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Conversation Id
+       * Format: uuid
+       */
+      conversation_id: string;
       /** Role */
       role: string;
       /** Content */
@@ -384,8 +396,11 @@ export interface components {
       email: string;
       /** Full Name */
       full_name?: string | null;
-      /** Id */
-      id: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
       /**
        * Created At
        * Format: date-time
@@ -601,7 +616,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        conversation_id: number;
+        conversation_id: string;
       };
       cookie?: never;
     };
@@ -632,7 +647,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        conversation_id: number;
+        conversation_id: string;
       };
       cookie?: never;
     };
@@ -661,7 +676,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        conversation_id: number;
+        conversation_id: string;
       };
       cookie?: never;
     };
@@ -696,7 +711,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        conversation_id: number;
+        conversation_id: string;
       };
       cookie?: never;
     };
@@ -727,7 +742,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
-        conversation_id: number;
+        conversation_id: string;
       };
       cookie?: never;
     };

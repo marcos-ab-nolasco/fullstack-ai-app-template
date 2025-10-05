@@ -12,7 +12,7 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     """Token payload schema."""
 
-    sub: int | None = None
+    sub: str | None = None  # UUID as string in JWT
     exp: int | None = None
     type: str | None = None
 

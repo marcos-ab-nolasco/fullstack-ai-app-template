@@ -1,0 +1,288 @@
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.db.models import Conversation, User
+
+
+@pytest.mark.asyncio
+async def test_create_conversation(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test creating a new conversation."""
+    response = await client.post(
+        "/chat/conversations",
+        json={
+            "title": "My First Chat",
+            "ai_provider": "openai",
+            "ai_model": "gpt-4",
+            "system_prompt": "You are a helpful assistant.",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "My First Chat"
+    assert data["ai_provider"] == "openai"
+    assert data["ai_model"] == "gpt-4"
+    assert data["system_prompt"] == "You are a helpful assistant."
+    assert data["user_id"] == str(test_user.id)
+    assert "id" in data
+    assert "created_at" in data
+    assert "updated_at" in data
+
+
+@pytest.mark.asyncio
+async def test_list_conversations(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test listing conversations for current user."""
+    # Create two conversations
+    await client.post(
+        "/chat/conversations",
+        json={"title": "Chat 1", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    await client.post(
+        "/chat/conversations",
+        json={"title": "Chat 2", "ai_provider": "anthropic", "ai_model": "claude-3"},
+        headers=auth_headers,
+    )
+
+    # List conversations
+    response = await client.get("/chat/conversations", headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    assert len(data["conversations"]) == 2
+    # Should be ordered by updated_at desc (most recent first)
+    assert data["conversations"][0]["title"] == "Chat 2"
+    assert data["conversations"][1]["title"] == "Chat 1"
+
+
+@pytest.mark.asyncio
+async def test_get_conversation(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test getting a specific conversation."""
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "Test Chat", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Get conversation
+    response = await client.get(f"/chat/conversations/{conversation_id}", headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == conversation_id
+    assert data["title"] == "Test Chat"
+
+
+@pytest.mark.asyncio
+async def test_cannot_access_other_user_conversation(
+    client: AsyncClient, test_user: User, db_session: AsyncSession
+) -> None:
+    """Test that users cannot access conversations from other users."""
+    from src.core.security import create_access_token, hash_password
+
+    # Create another user
+    other_user = User(
+        email="other@example.com",
+        hashed_password=hash_password("password123"),
+        full_name="Other User",
+    )
+    db_session.add(other_user)
+    await db_session.commit()
+    await db_session.refresh(other_user)
+
+    # Create conversation for other user
+    other_conversation = Conversation(
+        user_id=other_user.id,
+        title="Other User Chat",
+        ai_provider="openai",
+        ai_model="gpt-4",
+    )
+    db_session.add(other_conversation)
+    await db_session.commit()
+    await db_session.refresh(other_conversation)
+
+    # Try to access with test_user's token
+    test_user_token = create_access_token(data={"sub": str(test_user.id)})
+    headers = {"Authorization": f"Bearer {test_user_token}"}
+
+    response = await client.get(f"/chat/conversations/{other_conversation.id}", headers=headers)
+
+    assert response.status_code == 403
+    assert "Not authorized" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_update_conversation(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test updating a conversation."""
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "Original Title", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Update conversation
+    response = await client.patch(
+        f"/chat/conversations/{conversation_id}",
+        json={"title": "Updated Title", "system_prompt": "New system prompt"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["title"] == "Updated Title"
+    assert data["system_prompt"] == "New system prompt"
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test deleting a conversation."""
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "To Be Deleted", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Delete conversation
+    delete_response = await client.delete(
+        f"/chat/conversations/{conversation_id}", headers=auth_headers
+    )
+    assert delete_response.status_code == 204
+
+    # Verify it's deleted (should return 404)
+    get_response = await client.get(f"/chat/conversations/{conversation_id}", headers=auth_headers)
+    assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_message(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test creating a message in a conversation."""
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "Chat with Messages", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Create message
+    response = await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "user", "content": "Hello, AI!", "tokens_used": 10, "meta": {"test": "data"}},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["conversation_id"] == conversation_id
+    assert data["role"] == "user"
+    assert data["content"] == "Hello, AI!"
+    assert data["tokens_used"] == 10
+    assert data["meta"] == {"test": "data"}
+    assert "id" in data
+    assert "created_at" in data
+
+
+@pytest.mark.asyncio
+async def test_list_messages(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Test listing messages in a conversation."""
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "Chat History", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Create multiple messages
+    await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "user", "content": "First message"},
+        headers=auth_headers,
+    )
+    await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "assistant", "content": "First response"},
+        headers=auth_headers,
+    )
+    await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "user", "content": "Second message"},
+        headers=auth_headers,
+    )
+
+    # List messages
+    response = await client.get(
+        f"/chat/conversations/{conversation_id}/messages", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 3
+    assert len(data["messages"]) == 3
+    # Should be ordered by created_at asc (oldest first)
+    assert data["messages"][0]["content"] == "First message"
+    assert data["messages"][1]["content"] == "First response"
+    assert data["messages"][2]["content"] == "Second message"
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation_cascades_to_messages(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str], db_session: AsyncSession
+) -> None:
+    """Test that deleting a conversation also deletes its messages."""
+    from sqlalchemy import func, select
+
+    from src.db.models import Message
+
+    # Create conversation
+    create_response = await client.post(
+        "/chat/conversations",
+        json={"title": "Cascade Test", "ai_provider": "openai", "ai_model": "gpt-4"},
+        headers=auth_headers,
+    )
+    conversation_id = create_response.json()["id"]
+
+    # Create messages
+    await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "user", "content": "Message 1"},
+        headers=auth_headers,
+    )
+    await client.post(
+        f"/chat/conversations/{conversation_id}/messages",
+        json={"role": "assistant", "content": "Message 2"},
+        headers=auth_headers,
+    )
+
+    # Delete conversation
+    await client.delete(f"/chat/conversations/{conversation_id}", headers=auth_headers)
+
+    # Verify messages are also deleted
+    result = await db_session.execute(
+        select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
+    )
+    count = result.scalar()
+    assert count == 0

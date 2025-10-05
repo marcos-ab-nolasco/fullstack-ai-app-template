@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import HTTPException, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +9,7 @@ from src.schemas.chat import ConversationCreate, ConversationUpdate, MessageCrea
 
 
 async def get_conversation_by_id(
-    db: AsyncSession, conversation_id: int, user_id: int
+    db: AsyncSession, conversation_id: UUID, user_id: UUID
 ) -> Conversation:
     """Get a conversation by ID with authorization check.
 
@@ -40,7 +42,7 @@ async def get_conversation_by_id(
     return conversation
 
 
-async def get_user_conversations(db: AsyncSession, user_id: int) -> list[Conversation]:
+async def get_user_conversations(db: AsyncSession, user_id: UUID) -> list[Conversation]:
     """Get all conversations for a user.
 
     Args:
@@ -59,7 +61,7 @@ async def get_user_conversations(db: AsyncSession, user_id: int) -> list[Convers
 
 
 async def create_conversation(
-    db: AsyncSession, conversation_data: ConversationCreate, user_id: int
+    db: AsyncSession, conversation_data: ConversationCreate, user_id: UUID
 ) -> Conversation:
     """Create a new conversation.
 
@@ -87,7 +89,7 @@ async def create_conversation(
 
 
 async def update_conversation(
-    db: AsyncSession, conversation_id: int, conversation_data: ConversationUpdate, user_id: int
+    db: AsyncSession, conversation_id: UUID, conversation_data: ConversationUpdate, user_id: UUID
 ) -> Conversation:
     """Update a conversation.
 
@@ -116,7 +118,7 @@ async def update_conversation(
     return conversation
 
 
-async def delete_conversation(db: AsyncSession, conversation_id: int, user_id: int) -> None:
+async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> None:
     """Delete a conversation.
 
     Args:
@@ -134,7 +136,7 @@ async def delete_conversation(db: AsyncSession, conversation_id: int, user_id: i
 
 
 async def get_conversation_messages(
-    db: AsyncSession, conversation_id: int, user_id: int
+    db: AsyncSession, conversation_id: UUID, user_id: UUID
 ) -> list[Message]:
     """Get all messages for a conversation.
 
@@ -161,7 +163,7 @@ async def get_conversation_messages(
 
 
 async def create_message(
-    db: AsyncSession, conversation_id: int, message_data: MessageCreate, user_id: int
+    db: AsyncSession, conversation_id: UUID, message_data: MessageCreate, user_id: UUID
 ) -> Message:
     """Create a new message in a conversation.
 
