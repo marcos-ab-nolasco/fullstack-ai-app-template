@@ -15,6 +15,7 @@ from collections.abc import AsyncGenerator, Generator  # noqa: E402
 from typing import Any  # noqa: E402
 
 import pytest  # noqa: E402
+import sqlalchemy  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from pytest_mock import MockerFixture  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
@@ -22,6 +23,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.core.config import get_settings  # noqa: E402
 from src.db.models.user import User  # noqa: E402
@@ -63,17 +65,26 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 @pytest.fixture(scope="session")
 async def test_engine():
-    """Create test database engine with SQLite in-memory."""
-    settings = get_settings()
-    engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True)
+    """Create test database engine with PostgreSQL.
 
-    # Create tables
+    Uses NullPool to ensure each operation gets a fresh connection,
+    preventing 'another operation is in progress' errors with asyncpg.
+    """
+    settings = get_settings()
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        future=True,
+        poolclass=NullPool,  # No connection pooling - each op gets fresh connection
+    )
+
+    # Create all tables once for the entire test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
-    # Drop tables
+    # Drop all tables at the end of the test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -82,7 +93,7 @@ async def test_engine():
 
 @pytest.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session with cleanup after each test."""
+    """Create test database session with table cleanup after each test."""
     session_factory = async_sessionmaker(
         test_engine,
         class_=AsyncSession,
@@ -93,12 +104,17 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
     async with session_factory() as session:
         yield session
-        await session.rollback()
 
-    # Clean all tables after each test to avoid unique constraint issues
+    # Clean all tables after each test using TRUNCATE CASCADE
+    # This is fast, handles foreign keys automatically, and resets sequences
     async with test_engine.begin() as conn:
-        for table in reversed(Base.metadata.sorted_tables):
-            await conn.execute(table.delete())
+        # Get all table names in reverse order (respects dependencies)
+        table_names = ", ".join([table.name for table in reversed(Base.metadata.sorted_tables)])
+
+        # TRUNCATE with CASCADE handles foreign keys, RESTART IDENTITY resets auto-increment
+        await conn.execute(
+            sqlalchemy.text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE")
+        )
 
 
 @pytest.fixture

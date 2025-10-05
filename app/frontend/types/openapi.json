@@ -122,6 +122,218 @@
         "security": [{ "HTTPBearer": [] }]
       }
     },
+    "/chat/conversations": {
+      "get": {
+        "tags": ["chat"],
+        "summary": "List Conversations",
+        "description": "List all conversations for the current user.",
+        "operationId": "list_conversations_chat_conversations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ConversationList" } }
+            }
+          }
+        },
+        "security": [{ "HTTPBearer": [] }]
+      },
+      "post": {
+        "tags": ["chat"],
+        "summary": "Create Conversation",
+        "description": "Create a new conversation.",
+        "operationId": "create_conversation_chat_conversations_post",
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ConversationCreate" } }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ConversationRead" } }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "HTTPBearer": [] }]
+      }
+    },
+    "/chat/conversations/{conversation_id}": {
+      "get": {
+        "tags": ["chat"],
+        "summary": "Get Conversation",
+        "description": "Get a conversation by ID.",
+        "operationId": "get_conversation_chat_conversations__conversation_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Conversation Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ConversationRead" } }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["chat"],
+        "summary": "Update Conversation",
+        "description": "Update a conversation.",
+        "operationId": "update_conversation_chat_conversations__conversation_id__patch",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Conversation Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ConversationUpdate" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ConversationRead" } }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["chat"],
+        "summary": "Delete Conversation",
+        "description": "Delete a conversation.",
+        "operationId": "delete_conversation_chat_conversations__conversation_id__delete",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Conversation Id" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Successful Response" },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat/conversations/{conversation_id}/messages": {
+      "get": {
+        "tags": ["chat"],
+        "summary": "List Messages",
+        "description": "List all messages in a conversation.",
+        "operationId": "list_messages_chat_conversations__conversation_id__messages_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Conversation Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MessageList" } }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["chat"],
+        "summary": "Create Message",
+        "description": "Create a new message in a conversation.\n\nNote: In Phase 3, this only stores the message without AI response.\nAI integration will be added in Phase 4.",
+        "operationId": "create_message_chat_conversations__conversation_id__messages_post",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Conversation Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/MessageCreate" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MessageRead" } }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health_check": {
       "get": {
         "summary": "Health Check",
@@ -164,6 +376,89 @@
   },
   "components": {
     "schemas": {
+      "ConversationCreate": {
+        "properties": {
+          "title": { "type": "string", "maxLength": 255, "minLength": 1, "title": "Title" },
+          "ai_provider": {
+            "type": "string",
+            "pattern": "^(openai|anthropic|gemini|grok)$",
+            "title": "Ai Provider",
+            "default": "openai"
+          },
+          "ai_model": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Ai Model",
+            "default": "gpt-4"
+          },
+          "system_prompt": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "System Prompt"
+          }
+        },
+        "type": "object",
+        "required": ["title"],
+        "title": "ConversationCreate",
+        "description": "Schema for creating a new conversation."
+      },
+      "ConversationList": {
+        "properties": {
+          "conversations": {
+            "items": { "$ref": "#/components/schemas/ConversationRead" },
+            "type": "array",
+            "title": "Conversations"
+          },
+          "total": { "type": "integer", "title": "Total" }
+        },
+        "type": "object",
+        "required": ["conversations", "total"],
+        "title": "ConversationList",
+        "description": "Schema for listing conversations."
+      },
+      "ConversationRead": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "user_id": { "type": "integer", "title": "User Id" },
+          "title": { "type": "string", "title": "Title" },
+          "ai_provider": { "type": "string", "title": "Ai Provider" },
+          "ai_model": { "type": "string", "title": "Ai Model" },
+          "system_prompt": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "System Prompt"
+          },
+          "created_at": { "type": "string", "format": "date-time", "title": "Created At" },
+          "updated_at": { "type": "string", "format": "date-time", "title": "Updated At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "ai_provider",
+          "ai_model",
+          "system_prompt",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationRead",
+        "description": "Schema for reading a conversation."
+      },
+      "ConversationUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [{ "type": "string", "maxLength": 255, "minLength": 1 }, { "type": "null" }],
+            "title": "Title"
+          },
+          "system_prompt": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "System Prompt"
+          }
+        },
+        "type": "object",
+        "title": "ConversationUpdate",
+        "description": "Schema for updating a conversation."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -174,6 +469,67 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "MessageCreate": {
+        "properties": {
+          "role": { "type": "string", "pattern": "^(user|assistant|system)$", "title": "Role" },
+          "content": { "type": "string", "minLength": 1, "title": "Content" },
+          "tokens_used": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Tokens Used"
+          },
+          "meta": {
+            "anyOf": [{ "additionalProperties": true, "type": "object" }, { "type": "null" }],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": ["role", "content"],
+        "title": "MessageCreate",
+        "description": "Schema for creating a new message."
+      },
+      "MessageList": {
+        "properties": {
+          "messages": {
+            "items": { "$ref": "#/components/schemas/MessageRead" },
+            "type": "array",
+            "title": "Messages"
+          },
+          "total": { "type": "integer", "title": "Total" }
+        },
+        "type": "object",
+        "required": ["messages", "total"],
+        "title": "MessageList",
+        "description": "Schema for listing messages."
+      },
+      "MessageRead": {
+        "properties": {
+          "id": { "type": "integer", "title": "Id" },
+          "conversation_id": { "type": "integer", "title": "Conversation Id" },
+          "role": { "type": "string", "title": "Role" },
+          "content": { "type": "string", "title": "Content" },
+          "tokens_used": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Tokens Used"
+          },
+          "meta": {
+            "anyOf": [{ "additionalProperties": true, "type": "object" }, { "type": "null" }],
+            "title": "Meta"
+          },
+          "created_at": { "type": "string", "format": "date-time", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "conversation_id",
+          "role",
+          "content",
+          "tokens_used",
+          "meta",
+          "created_at"
+        ],
+        "title": "MessageRead",
+        "description": "Schema for reading a message."
       },
       "RefreshTokenRequest": {
         "properties": { "refresh_token": { "type": "string", "title": "Refresh Token" } },

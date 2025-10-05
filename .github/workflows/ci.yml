@@ -72,6 +72,21 @@ jobs:
     container:
       image: ghcr.io/astral-sh/uv:python3.11-bookworm
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: fullstack_test
+        options: >-
+          --health-cmd "pg_isready -U test -d fullstack_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 3
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -82,6 +97,8 @@ jobs:
 
       - name: Run backend tests
         working-directory: app/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@postgres:5432/fullstack_test
         run: uv run pytest -v
 
   test-frontend:
