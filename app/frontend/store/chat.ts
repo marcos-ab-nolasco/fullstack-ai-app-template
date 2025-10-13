@@ -192,11 +192,12 @@ export const useChatStore = create<ChatState>()(
             content,
           });
 
-          // Remove optimistic message and add real response with sent status
+          // Remove optimistic message and add both user and assistant messages
           set((state) => ({
             messages: [
               ...state.messages.filter((m) => m.id !== optimisticMessage.id),
-              { ...messageResponse, status: "sent" as const },
+              { ...messageResponse.user_message, status: "sent" as const },
+              { ...messageResponse.assistant_message, status: "sent" as const },
             ],
             isSendingMessage: false,
           }));
@@ -245,11 +246,12 @@ export const useChatStore = create<ChatState>()(
             content: failedMessage.content,
           });
 
-          // Replace failed message with successful response
+          // Replace failed message with successful response (user + assistant)
           set((state) => ({
             messages: [
               ...state.messages.filter((m) => m.id !== messageId),
-              { ...messageResponse, status: "sent" as const },
+              { ...messageResponse.user_message, status: "sent" as const },
+              { ...messageResponse.assistant_message, status: "sent" as const },
             ],
             isSendingMessage: false,
           }));

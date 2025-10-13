@@ -55,6 +55,19 @@ def avoid_external_requests(mocker: MockerFixture) -> None:
     mocker.patch("httpx._transports.default.HTTPTransport.handle_request", new=fail)
 
 
+@pytest.fixture(autouse=True)
+def mock_ai_service(mocker: MockerFixture) -> Any:
+    """Mock AI service globally to prevent slow external API calls during tests.
+
+    Tests that need specific AI service behavior can override this by patching
+    'src.services.chat.get_ai_service' again in the test.
+    """
+    mock_service = mocker.Mock()
+    mock_service.generate_response = mocker.AsyncMock(return_value="Mocked AI response")
+    mocker.patch("src.services.chat.get_ai_service", return_value=mock_service)
+    return mock_service
+
+
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create event loop for session scope."""

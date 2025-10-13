@@ -1,15 +1,15 @@
 from src.schemas.auth import RefreshTokenRequest, Token
 from src.schemas.chat import (
+    AIProvider,
+    AIProviderList,
     ConversationCreate,
     ConversationList,
     ConversationRead,
     ConversationUpdate,
     MessageCreate,
+    MessageCreateResponse,
     MessageList,
     MessageRead,
-    MessageCreateResponse,
-    AIProvider,
-    AIProviderList,
 )
 from src.schemas.user import UserCreate, UserRead
 

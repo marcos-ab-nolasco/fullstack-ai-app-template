@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from src.core.config import get_settings
+from src.schemas.chat import AIModelOption, AIProvider
 
 from .anthropic_service import AnthropicService
 from .base import BaseAIService
@@ -63,22 +64,29 @@ def get_ai_service(provider: str) -> BaseAIService:
     raise ValueError(f"Unknown provider: {provider}")
 
 
-def list_ai_providers() -> list[dict[str, Any]]:
+def list_ai_providers() -> list[AIProvider]:
     """Expose available AI providers with metadata."""
 
     settings = get_settings()
-    providers: list[dict[str, Any]] = []
+    providers: list[AIProvider] = []
 
     for provider_id, meta in AI_PROVIDER_REGISTRY.items():
         is_configured_callable = meta.get("is_configured")
-        is_configured = bool(is_configured_callable(settings)) if callable(is_configured_callable) else False
+        is_configured = (
+            bool(is_configured_callable(settings)) if callable(is_configured_callable) else False
+        )
+
+        # Convert model dicts to AIModelOption objects
+        models_data = meta.get("models", [])
+        models = [AIModelOption(**model) for model in models_data]
+
         providers.append(
-            {
-                "id": provider_id,
-                "label": meta.get("label", provider_id.title()),
-                "models": meta.get("models", []),
-                "is_configured": is_configured,
-            }
+            AIProvider(
+                id=provider_id,
+                label=meta.get("label", provider_id.title()),
+                models=models,
+                is_configured=is_configured,
+            )
         )
 
     return providers

@@ -219,9 +219,7 @@ export function NewConversationModal({
             {errors.ai_provider && (
               <p className="mt-1 text-sm text-red-600">{errors.ai_provider.message}</p>
             )}
-            {providerError && (
-              <p className="mt-1 text-sm text-red-600">{providerError}</p>
-            )}
+            {providerError && <p className="mt-1 text-sm text-red-600">{providerError}</p>}
           </div>
 
           <div>
@@ -232,9 +230,7 @@ export function NewConversationModal({
               {...register("ai_model")}
               id="ai_model"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={
-                isLoadingProviders || (selectedProviderInfo?.models.length ?? 0) === 0
-              }
+              disabled={isLoadingProviders || (selectedProviderInfo?.models.length ?? 0) === 0}
             >
               {(selectedProviderInfo?.models ?? []).map((model) => (
                 <option key={model.value} value={model.value}>

@@ -31,9 +31,7 @@ class AnthropicService(BaseAIService):
     ) -> str:
         """Generate a completion using Anthropic with retry logic."""
         if self._client is None:
-            return (
-                "Anthropic não está configurado. Defina ANTHROPIC_API_KEY para habilitar respostas automáticas."
-            )
+            return "Anthropic não está configurado. Defina ANTHROPIC_API_KEY para habilitar respostas automáticas."
 
         client = self._client
         payload = self._build_payload(messages)
@@ -62,7 +60,9 @@ class AnthropicService(BaseAIService):
             ) from exc
 
         text_parts = [
-            block.text for block in getattr(response, "content", []) if hasattr(block, "text")
+            block.text
+            for block in getattr(response, "content", [])
+            if hasattr(block, "text") and block.text is not None
         ]
 
         content = "".join(text_parts)

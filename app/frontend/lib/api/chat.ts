@@ -7,8 +7,8 @@ type ConversationUpdate = components["schemas"]["ConversationUpdate"];
 type ConversationRead = components["schemas"]["ConversationRead"];
 type ConversationList = components["schemas"]["ConversationList"];
 type MessageCreate = components["schemas"]["MessageCreate"];
-type MessageRead = components["schemas"]["MessageRead"];
 type MessageList = components["schemas"]["MessageList"];
+type MessageCreateResponse = components["schemas"]["MessageCreateResponse"];
 
 /**
  * Helper to format error messages from API responses
@@ -141,7 +141,7 @@ export async function getMessages(conversationId: string): Promise<MessageList> 
 export async function sendMessage(
   conversationId: string,
   data: MessageCreate
-): Promise<MessageRead> {
+): Promise<MessageCreateResponse> {
   const response = await authenticatedClient.POST(
     "/chat/conversations/{conversation_id}/messages",
     {

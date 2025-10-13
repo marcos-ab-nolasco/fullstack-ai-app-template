@@ -225,7 +225,10 @@ async def test_anthropic_service_raises_when_response_empty(mocker: MockerFixtur
     mocker.patch("src.services.ai.anthropic_service.get_settings", return_value=mock_settings)
 
     mock_response = mocker.Mock()
-    mock_response.content = [SimpleNamespace(type="text", text=""), SimpleNamespace(type="text", text=None)]
+    mock_response.content = [
+        SimpleNamespace(type="text", text=""),
+        SimpleNamespace(type="text", text=None),
+    ]
 
     mock_create = mocker.AsyncMock(return_value=mock_response)
     mock_client = mocker.Mock()
@@ -236,6 +239,8 @@ async def test_anthropic_service_raises_when_response_empty(mocker: MockerFixtur
     service = AnthropicService()
 
     with pytest.raises(HTTPException) as exc_info:
-        await service.generate_response(messages=[{"role": "user", "content": "Hi"}], model="claude-3")
+        await service.generate_response(
+            messages=[{"role": "user", "content": "Hi"}], model="claude-3"
+        )
 
     assert exc_info.value.status_code == 502

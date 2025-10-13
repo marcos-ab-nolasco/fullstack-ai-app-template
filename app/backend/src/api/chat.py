@@ -8,6 +8,7 @@ from src.core.dependencies import get_current_user
 from src.db.models import User
 from src.db.session import get_db
 from src.schemas.chat import (
+    AIProviderList,
     ConversationCreate,
     ConversationList,
     ConversationRead,
@@ -16,7 +17,6 @@ from src.schemas.chat import (
     MessageCreateResponse,
     MessageList,
     MessageRead,
-    AIProviderList,
 )
 from src.services import chat as chat_service
 from src.services.ai import list_ai_providers

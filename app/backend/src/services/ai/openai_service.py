@@ -29,9 +29,7 @@ class OpenAIService(BaseAIService):
     ) -> str:
         """Generate a completion using OpenAI with retry logic."""
         if self._client is None:
-            return (
-                "OpenAI não está configurado. Defina OPENAI_API_KEY para habilitar respostas automáticas."
-            )
+            return "OpenAI não está configurado. Defina OPENAI_API_KEY para habilitar respostas automáticas."
 
         client = self._client
         payload = self._build_payload(messages, system_prompt)
