@@ -24,6 +24,10 @@ Template fullstack (FastAPI + Next.js) com foco em integrações de IA, pensado 
 3. Garanta que `app/frontend` tenha o lock atualizado: `pnpm install`.
 4. Exponha as variáveis necessárias (`DATABASE_URL`, `REDIS_URL`, chaves de IA etc.) no `.env` raiz. Esse arquivo é lido tanto pelo backend quanto pelos workflows/docker.
 
+### Provedores de IA
+- `OPENAI_API_KEY` e `ANTHROPIC_API_KEY` habilitam as integrações com OpenAI e Anthropic, respectivamente. Sem essas chaves, o backend mantém o fluxo local e responde com um aviso indicando que o provedor não está configurado (útil para desenvolvimento offline).
+- As opções disponíveis no frontend são carregadas dinamicamente a partir do backend (`GET /chat/providers`), assim você só vê os provedores realmente suportados.
+
 ## Desenvolvimento Local (modo manual)
 Fluxo atual que sigo no dia a dia:
 

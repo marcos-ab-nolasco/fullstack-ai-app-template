@@ -8,6 +8,8 @@ from src.schemas.chat import (
     MessageList,
     MessageRead,
     MessageCreateResponse,
+    AIProvider,
+    AIProviderList,
 )
 from src.schemas.user import UserCreate, UserRead
 
@@ -24,4 +26,6 @@ __all__ = [
     "MessageRead",
     "MessageList",
     "MessageCreateResponse",
+    "AIProvider",
+    "AIProviderList",
 ]

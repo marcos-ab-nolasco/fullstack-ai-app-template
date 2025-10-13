@@ -3,42 +3,23 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-// Validation schema
+type ProviderOption = {
+  id: string;
+  label: string;
+  models: { value: string; label: string }[];
+  is_configured: boolean;
+};
+
 const conversationSchema = z.object({
   title: z.string().min(1, "Título é obrigatório").max(255, "Título muito longo"),
-  ai_provider: z.enum(["openai", "anthropic", "gemini", "grok"]),
+  ai_provider: z.string().min(1, "Provedor é obrigatório"),
   ai_model: z.string().min(1, "Modelo é obrigatório"),
   system_prompt: z.string().optional(),
 });
 
 type ConversationFormData = z.infer<typeof conversationSchema>;
-
-// Model options by provider
-const MODEL_OPTIONS: Record<string, { value: string; label: string }[]> = {
-  openai: [
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o Mini" },
-    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
-  ],
-  anthropic: [
-    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-    { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-    { value: "claude-3-sonnet-20240229", label: "Claude 3 Sonnet" },
-    { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" },
-  ],
-  gemini: [
-    { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
-    { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-  ],
-  grok: [
-    { value: "grok-beta", label: "Grok Beta" },
-    { value: "grok-vision-beta", label: "Grok Vision Beta" },
-  ],
-};
 
 interface NewConversationModalProps {
   isOpen: boolean;
@@ -59,37 +40,122 @@ export function NewConversationModal({
     watch,
     setValue,
     reset,
+    getValues,
     formState: { errors },
   } = useForm<ConversationFormData>({
     resolver: zodResolver(conversationSchema),
     defaultValues: {
       title: "",
-      ai_provider: "openai",
-      ai_model: "gpt-4o",
+      ai_provider: "",
+      ai_model: "",
       system_prompt: "",
     },
   });
 
+  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState<boolean>(true);
+  const [providerError, setProviderError] = useState<string | null>(null);
+
   const selectedProvider = watch("ai_provider");
 
-  // Update model when provider changes
-  useEffect(() => {
-    if (selectedProvider) {
-      const firstModel = MODEL_OPTIONS[selectedProvider]?.[0]?.value;
-      if (firstModel) {
-        setValue("ai_model", firstModel);
-      }
-    }
-  }, [selectedProvider, setValue]);
+  const selectedProviderInfo = useMemo(
+    () => providers.find((provider) => provider.id === selectedProvider),
+    [providers, selectedProvider]
+  );
 
-  // Reset form when modal closes
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProviders = async () => {
+      setIsLoadingProviders(true);
+      setProviderError(null);
+
+      try {
+        const response = await fetch("/api/chat/providers");
+        if (!response.ok) {
+          throw new Error(`Failed to load providers: ${response.status}`);
+        }
+
+        const payload = (await response.json()) as { providers?: ProviderOption[] };
+
+        if (!isMounted) return;
+        setProviders(payload.providers ?? []);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error("Failed to load AI providers", error);
+        setProviderError(
+          "Não foi possível carregar os provedores de IA. Verifique o backend e tente novamente."
+        );
+        setProviders([]);
+      } finally {
+        if (isMounted) {
+          setIsLoadingProviders(false);
+        }
+      }
+    };
+
+    loadProviders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProvider) {
+      setValue("ai_model", "");
+      return;
+    }
+
+    const provider = providers.find((item) => item.id === selectedProvider);
+    if (!provider) {
+      setValue("ai_model", "");
+      return;
+    }
+
+    const currentModel = getValues("ai_model");
+    const hasModel = provider.models.some((model) => model.value === currentModel);
+    if (!hasModel) {
+      const firstModel = provider.models[0]?.value ?? "";
+      setValue("ai_model", firstModel);
+    }
+  }, [selectedProvider, providers, setValue, getValues]);
+
+  useEffect(() => {
+    if (providers.length === 0) {
+      return;
+    }
+
+    const currentProvider = getValues("ai_provider");
+    const availableIds = providers.map((provider) => provider.id);
+    const firstConfigured = providers.find((provider) => provider.is_configured);
+    const fallback = firstConfigured ?? providers[0];
+
+    if (!currentProvider || !availableIds.includes(currentProvider)) {
+      setValue("ai_provider", fallback.id);
+      const firstModel = fallback.models[0]?.value ?? "";
+      setValue("ai_model", firstModel);
+    }
+  }, [providers, getValues, setValue]);
+
   useEffect(() => {
     if (!isOpen) {
-      reset();
+      const defaultProvider = providers.find((provider) => provider.is_configured) ?? providers[0];
+      reset({
+        title: "",
+        ai_provider: defaultProvider?.id ?? "",
+        ai_model: defaultProvider?.models[0]?.value ?? "",
+        system_prompt: "",
+      });
     }
-  }, [isOpen, reset]);
+  }, [isOpen, reset, providers]);
 
   const handleFormSubmit = async (data: ConversationFormData) => {
+    if (!providers.length) {
+      setProviderError("Nenhum provedor de IA foi carregado.");
+      return;
+    }
+
     await onSubmit(data);
     onClose();
   };
@@ -99,7 +165,6 @@ export function NewConversationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">Nova Conversa</h2>
           <button
@@ -118,9 +183,7 @@ export function NewConversationModal({
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit(handleFormSubmit)} className="p-6 space-y-4">
-          {/* Title */}
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
               Título <span className="text-red-500">*</span>
@@ -135,7 +198,6 @@ export function NewConversationModal({
             {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>}
           </div>
 
-          {/* Provider */}
           <div>
             <label htmlFor="ai_provider" className="block text-sm font-medium text-gray-700 mb-1">
               Provedor de IA <span className="text-red-500">*</span>
@@ -144,18 +206,24 @@ export function NewConversationModal({
               {...register("ai_provider")}
               id="ai_provider"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isLoadingProviders}
             >
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="gemini">Google Gemini</option>
-              <option value="grok">xAI Grok</option>
+              {isLoadingProviders && <option>Carregando provedores...</option>}
+              {providers.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}
+                  {!provider.is_configured ? " (não configurado)" : ""}
+                </option>
+              ))}
             </select>
             {errors.ai_provider && (
               <p className="mt-1 text-sm text-red-600">{errors.ai_provider.message}</p>
             )}
+            {providerError && (
+              <p className="mt-1 text-sm text-red-600">{providerError}</p>
+            )}
           </div>
 
-          {/* Model */}
           <div>
             <label htmlFor="ai_model" className="block text-sm font-medium text-gray-700 mb-1">
               Modelo <span className="text-red-500">*</span>
@@ -164,8 +232,11 @@ export function NewConversationModal({
               {...register("ai_model")}
               id="ai_model"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={
+                isLoadingProviders || (selectedProviderInfo?.models.length ?? 0) === 0
+              }
             >
-              {MODEL_OPTIONS[selectedProvider]?.map((model) => (
+              {(selectedProviderInfo?.models ?? []).map((model) => (
                 <option key={model.value} value={model.value}>
                   {model.label}
                 </option>
@@ -174,9 +245,11 @@ export function NewConversationModal({
             {errors.ai_model && (
               <p className="mt-1 text-sm text-red-600">{errors.ai_model.message}</p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              Os modelos exibidos dependem do provedor selecionado e da configuração do backend.
+            </p>
           </div>
 
-          {/* System Prompt */}
           <div>
             <label htmlFor="system_prompt" className="block text-sm font-medium text-gray-700 mb-1">
               Prompt do Sistema (opcional)
@@ -196,48 +269,21 @@ export function NewConversationModal({
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
               disabled={isSubmitting}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              disabled={isSubmitting || isLoadingProviders}
             >
-              {isSubmitting ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Criando...
-                </>
-              ) : (
-                "Criar Conversa"
-              )}
+              {isSubmitting ? "Criando..." : "Criar Conversa"}
             </button>
           </div>
         </form>

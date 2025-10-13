@@ -35,6 +35,24 @@ async def test_create_conversation(
 
 
 @pytest.mark.asyncio
+async def test_list_providers(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    """Providers endpoint should return supported providers from backend registry."""
+
+    response = await client.get("/chat/providers", headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "providers" in data
+    provider_ids = {provider["id"] for provider in data["providers"]}
+    assert {"openai", "anthropic"}.issubset(provider_ids)
+    for provider in data["providers"]:
+        assert "models" in provider
+        assert isinstance(provider["models"], list)
+
+
+@pytest.mark.asyncio
 async def test_list_conversations(
     client: AsyncClient, test_user: User, auth_headers: dict[str, str]
 ) -> None:

@@ -82,3 +82,25 @@ class MessageCreateResponse(BaseModel):
 
     user_message: MessageRead
     assistant_message: MessageRead
+
+
+class AIModelOption(BaseModel):
+    """Schema describing a model option for an AI provider."""
+
+    value: str
+    label: str
+
+
+class AIProvider(BaseModel):
+    """Schema describing available AI providers."""
+
+    id: str
+    label: str
+    models: list[AIModelOption]
+    is_configured: bool
+
+
+class AIProviderList(BaseModel):
+    """Response wrapper for provider listing."""
+
+    providers: list[AIProvider]

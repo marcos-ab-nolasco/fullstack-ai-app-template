@@ -16,8 +16,10 @@ from src.schemas.chat import (
     MessageCreateResponse,
     MessageList,
     MessageRead,
+    AIProviderList,
 )
 from src.services import chat as chat_service
+from src.services.ai import list_ai_providers
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -93,6 +95,16 @@ async def list_messages(
         messages=[MessageRead.model_validate(m) for m in messages],
         total=len(messages),
     )
+
+
+@router.get("/providers", response_model=AIProviderList)
+async def list_providers(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> AIProviderList:
+    """Expose configured AI providers for the frontend UI."""
+
+    providers = list_ai_providers()
+    return AIProviderList(providers=providers)
 
 
 @router.post(
