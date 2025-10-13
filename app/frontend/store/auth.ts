@@ -48,6 +48,10 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          setRefreshTokenCallback(async () => {
+            await get().refreshAuth();
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Login failed";
           set({ error: message, isLoading: false });
@@ -99,6 +103,10 @@ export const useAuthStore = create<AuthState>()(
           set({
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
+          });
+
+          setRefreshTokenCallback(async () => {
+            await get().refreshAuth();
           });
         } catch (error) {
           // If refresh fails, logout
