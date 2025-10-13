@@ -165,8 +165,8 @@ async def get_conversation_messages(
 
 async def create_message(
     db: AsyncSession, conversation_id: UUID, message_data: MessageCreate, user_id: UUID
-) -> Message:
-    """Create a new message in a conversation.
+) -> tuple[Message, Message]:
+    """Create a user message and generate the AI response in the same transaction flow.
 
     Args:
         db: Database session
@@ -175,7 +175,7 @@ async def create_message(
         user_id: Current user ID
 
     Returns:
-        Created message
+        Tuple with (user_message, assistant_message)
 
     Raises:
         HTTPException: 404 if conversation not found, 403 if not authorized
@@ -229,4 +229,4 @@ async def create_message(
     await db.commit()
     await db.refresh(assistant_message)
 
-    return assistant_message
+    return user_message, assistant_message

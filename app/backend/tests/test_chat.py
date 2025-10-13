@@ -205,10 +205,19 @@ async def test_create_message_generates_ai_response(
 
     assert response.status_code == 201
     data = response.json()
-    assert data["conversation_id"] == conversation_id
-    assert data["role"] == "assistant"
-    assert data["content"] == "AI response"
-    assert data["tokens_used"] is None
+    user_payload = data["user_message"]
+    assistant_payload = data["assistant_message"]
+
+    assert user_payload["conversation_id"] == conversation_id
+    assert user_payload["role"] == "user"
+    assert user_payload["content"] == "Hello, AI!"
+    assert user_payload["tokens_used"] == 10
+    assert user_payload["meta"] == {"test": "data"}
+
+    assert assistant_payload["conversation_id"] == conversation_id
+    assert assistant_payload["role"] == "assistant"
+    assert assistant_payload["content"] == "AI response"
+    assert assistant_payload["tokens_used"] is None
 
     mock_ai_service.generate_response.assert_awaited_once()
     call_args = mock_ai_service.generate_response.await_args

@@ -75,3 +75,10 @@ class MessageList(BaseModel):
 
     messages: list[MessageRead]
     total: int
+
+
+class MessageCreateResponse(BaseModel):
+    """Schema for the message creation workflow."""
+
+    user_message: MessageRead
+    assistant_message: MessageRead

@@ -13,6 +13,7 @@ from src.schemas.chat import (
     ConversationRead,
     ConversationUpdate,
     MessageCreate,
+    MessageCreateResponse,
     MessageList,
     MessageRead,
 )
@@ -96,7 +97,7 @@ async def list_messages(
 
 @router.post(
     "/conversations/{conversation_id}/messages",
-    response_model=MessageRead,
+    response_model=MessageCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_message(
@@ -104,11 +105,12 @@ async def create_message(
     message_data: MessageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> MessageRead:
-    """Create a new message in a conversation.
-
-    Note: In Phase 3, this only stores the message without AI response.
-    AI integration will be added in Phase 4.
-    """
-    message = await chat_service.create_message(db, conversation_id, message_data, current_user.id)
-    return MessageRead.model_validate(message)
+) -> MessageCreateResponse:
+    """Create a new message and trigger the AI-generated assistant reply."""
+    user_message, assistant_message = await chat_service.create_message(
+        db, conversation_id, message_data, current_user.id
+    )
+    return MessageCreateResponse(
+        user_message=MessageRead.model_validate(user_message),
+        assistant_message=MessageRead.model_validate(assistant_message),
+    )
