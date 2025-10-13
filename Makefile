@@ -1,4 +1,6 @@
-.PHONY: help setup dev-backend dev-frontend generate-types docker-up docker-down docker-logs migrate lint lint-fix lint-frontend test test-frontend test-cov clean
+.PHONY: help setup-docker generate-types docker-build docker-up docker-down docker-logs docker-restart \
+	docker-migrate docker-migrate-create migrate migrate-create migrate-downgrade lint-backend lint-backend-fix \
+	lint-frontend lint-frontend-fix lint lint-fix test-up test-down test-backend test-frontend test test-cov clean
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -55,18 +57,6 @@ lint-backend-fix:
 	cd app/backend && uv run black src tests --line-length 100
 	cd app/backend && uv run ruff check --fix src tests
 
-test-up: ## Start test database (PostgreSQL)
-	docker compose -f infrastructure/docker-compose.yml up -d postgres_test
-	@echo "Waiting for test database to be ready..."
-	@timeout 30 bash -c 'until docker compose -f infrastructure/docker-compose.yml ps postgres_test 2>/dev/null | grep -q "healthy"; do sleep 1; done' || (echo "Timeout waiting for test database" && exit 1)
-	@echo "Test database is ready!"
-
-test-down: ## Stop test database
-	docker compose -f infrastructure/docker-compose.yml stop postgres_test
-
-test-backend: ## Run backend tests (requires test database running)
-	cd app/backend && uv run pytest -v
-
 lint-frontend:
 	cd app/frontend && pnpm lint
 	cd app/frontend && pnpm format:check
@@ -75,9 +65,6 @@ lint-frontend:
 lint-frontend-fix:
 	cd app/frontend && pnpm lint:fix
 	cd app/frontend && pnpm format
-
-test-frontend:
-	cd app/frontend && pnpm test
 
 lint: ## Run linting and formatting checks (backend + frontend)
 	@echo "Linting backend..."
@@ -95,6 +82,21 @@ lint-fix: ## Fix linting issues (backend + frontend)
 	cd app/backend && uv run ruff check --fix src tests
 	@echo "Fixing frontend lint issues..."
 	cd app/frontend && pnpm lint:fix
+
+test-up: ## Start test database (PostgreSQL)
+	docker compose -f infrastructure/docker-compose.yml up -d postgres_test
+	@echo "Waiting for test database to be ready..."
+	@timeout 30 bash -c 'until docker compose -f infrastructure/docker-compose.yml ps postgres_test 2>/dev/null | grep -q "healthy"; do sleep 1; done' || (echo "Timeout waiting for test database" && exit 1)
+	@echo "Test database is ready!"
+
+test-down: ## Stop test database
+	docker compose -f infrastructure/docker-compose.yml stop postgres_test
+
+test-backend: ## Run backend tests (requires test database running)
+	cd app/backend && uv run pytest -v
+
+test-frontend:
+	cd app/frontend && pnpm test
 
 test: ## Run all tests (backend + frontend)
 	@echo "Checking if test database is running..."
