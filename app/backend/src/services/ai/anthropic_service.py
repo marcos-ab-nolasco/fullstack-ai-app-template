@@ -21,14 +21,7 @@ class AnthropicService(BaseAIService):
         api_key = (
             settings.ANTHROPIC_API_KEY.get_secret_value() if settings.ANTHROPIC_API_KEY else None
         )
-
-        if not api_key:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Anthropic API key is not configured",
-            )
-
-        self._client = AsyncAnthropic(api_key=api_key)
+        self._client = AsyncAnthropic(api_key=api_key) if api_key else None
 
     async def generate_response(
         self,
@@ -37,6 +30,12 @@ class AnthropicService(BaseAIService):
         system_prompt: str | None = None,
     ) -> str:
         """Generate a completion using Anthropic with retry logic."""
+        if self._client is None:
+            return (
+                "Anthropic não está configurado. Defina ANTHROPIC_API_KEY para habilitar respostas automáticas."
+            )
+
+        client = self._client
         payload = self._build_payload(messages)
         request_kwargs: dict[str, Any] = {
             "model": model,
@@ -55,7 +54,7 @@ class AnthropicService(BaseAIService):
                 retry=retry_if_exception_type(Exception),
             ):
                 with attempt:
-                    response = await self._client.messages.create(**request_kwargs)
+                    response = await client.messages.create(**request_kwargs)
         except Exception as exc:  # noqa: BLE001 - upstream errors vary
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,

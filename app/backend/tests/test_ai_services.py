@@ -50,6 +50,21 @@ async def test_openai_service_generate_response(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
+async def test_openai_service_returns_message_when_api_key_missing(mocker: MockerFixture) -> None:
+    """Should return mensagem amigável quando OPENAI_API_KEY não está configurada."""
+    mock_settings = mocker.Mock()
+    mock_settings.OPENAI_API_KEY = None
+    mocker.patch("src.services.ai.openai_service.get_settings", return_value=mock_settings)
+    async_openai = mocker.patch("src.services.ai.openai_service.AsyncOpenAI")
+
+    service = OpenAIService()
+    response = await service.generate_response(messages=[], model="gpt-4")
+
+    assert "OpenAI não está configurado" in response
+    async_openai.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_anthropic_service_generate_response(mocker: MockerFixture) -> None:
     """Anthropic service should format payload and return response content."""
     mock_settings = mocker.Mock()
@@ -77,6 +92,23 @@ async def test_anthropic_service_generate_response(mocker: MockerFixture) -> Non
     assert await_kwargs["model"] == "claude-3"
     assert await_kwargs["messages"][0]["role"] == "user"
     assert await_kwargs["system"] == "You are helpful."
+
+
+@pytest.mark.asyncio
+async def test_anthropic_service_returns_message_when_api_key_missing(
+    mocker: MockerFixture,
+) -> None:
+    """Should return mensagem amigável quando ANTHROPIC_API_KEY não está configurada."""
+    mock_settings = mocker.Mock()
+    mock_settings.ANTHROPIC_API_KEY = None
+    mocker.patch("src.services.ai.anthropic_service.get_settings", return_value=mock_settings)
+    async_anthropic = mocker.patch("src.services.ai.anthropic_service.AsyncAnthropic")
+
+    service = AnthropicService()
+    response = await service.generate_response(messages=[], model="claude-3")
+
+    assert "Anthropic não está configurado" in response
+    async_anthropic.assert_not_called()
 
 
 def test_factory_returns_correct_service(mocker: MockerFixture) -> None:
@@ -154,3 +186,56 @@ async def test_service_raises_502_on_persistent_failure(mocker: MockerFixture) -
 
     assert exc_info.value.status_code == 502
     assert mock_create.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_openai_service_raises_when_response_empty(mocker: MockerFixture) -> None:
+    """OpenAI responde vazio -> gera 502 amigável."""
+    mock_settings = mocker.Mock()
+    mock_settings.OPENAI_API_KEY = SecretStr("test-key")
+    mocker.patch("src.services.ai.openai_service.get_settings", return_value=mock_settings)
+
+    mock_message = mocker.Mock()
+    mock_message.content = ""
+    mock_choice = mocker.Mock()
+    mock_choice.message = mock_message
+    mock_response = mocker.Mock()
+    mock_response.choices = [mock_choice]
+
+    mock_create = mocker.AsyncMock(return_value=mock_response)
+    mock_client = mocker.Mock()
+    mock_client.chat = mocker.Mock()
+    mock_client.chat.completions = mocker.Mock()
+    mock_client.chat.completions.create = mock_create
+    mocker.patch("src.services.ai.openai_service.AsyncOpenAI", return_value=mock_client)
+
+    service = OpenAIService()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.generate_response(messages=[{"role": "user", "content": "Hi"}], model="gpt-4")
+
+    assert exc_info.value.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_anthropic_service_raises_when_response_empty(mocker: MockerFixture) -> None:
+    """Anthropic responde vazio -> gera 502 amigável."""
+    mock_settings = mocker.Mock()
+    mock_settings.ANTHROPIC_API_KEY = SecretStr("test-key")
+    mocker.patch("src.services.ai.anthropic_service.get_settings", return_value=mock_settings)
+
+    mock_response = mocker.Mock()
+    mock_response.content = [SimpleNamespace(type="text", text=""), SimpleNamespace(type="text", text=None)]
+
+    mock_create = mocker.AsyncMock(return_value=mock_response)
+    mock_client = mocker.Mock()
+    mock_client.messages = mocker.Mock()
+    mock_client.messages.create = mock_create
+    mocker.patch("src.services.ai.anthropic_service.AsyncAnthropic", return_value=mock_client)
+
+    service = AnthropicService()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.generate_response(messages=[{"role": "user", "content": "Hi"}], model="claude-3")
+
+    assert exc_info.value.status_code == 502

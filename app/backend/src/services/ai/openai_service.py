@@ -19,14 +19,7 @@ class OpenAIService(BaseAIService):
     def __init__(self) -> None:
         settings = get_settings()
         api_key = settings.OPENAI_API_KEY.get_secret_value() if settings.OPENAI_API_KEY else None
-
-        if not api_key:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="OpenAI API key is not configured",
-            )
-
-        self._client = AsyncOpenAI(api_key=api_key)
+        self._client = AsyncOpenAI(api_key=api_key) if api_key else None
 
     async def generate_response(
         self,
@@ -35,6 +28,12 @@ class OpenAIService(BaseAIService):
         system_prompt: str | None = None,
     ) -> str:
         """Generate a completion using OpenAI with retry logic."""
+        if self._client is None:
+            return (
+                "OpenAI não está configurado. Defina OPENAI_API_KEY para habilitar respostas automáticas."
+            )
+
+        client = self._client
         payload = self._build_payload(messages, system_prompt)
 
         try:
@@ -45,7 +44,7 @@ class OpenAIService(BaseAIService):
                 retry=retry_if_exception_type(Exception),
             ):
                 with attempt:
-                    response = await self._client.chat.completions.create(
+                    response = await client.chat.completions.create(
                         model=model,
                         messages=payload,  # type: ignore[arg-type]
                     )
