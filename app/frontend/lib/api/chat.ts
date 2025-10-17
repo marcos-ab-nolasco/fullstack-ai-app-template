@@ -9,6 +9,7 @@ type ConversationList = components["schemas"]["ConversationList"];
 type MessageCreate = components["schemas"]["MessageCreate"];
 type MessageList = components["schemas"]["MessageList"];
 type MessageCreateResponse = components["schemas"]["MessageCreateResponse"];
+type AIProviderList = components["schemas"]["AIProviderList"];
 
 /**
  * Helper to format error messages from API responses
@@ -156,6 +157,19 @@ export async function sendMessage(
 
   if (response.error) {
     throw new Error(formatErrorMessage(response.error.detail, "Failed to send message"));
+  }
+
+  return response.data;
+}
+
+/**
+ * List all available AI providers
+ */
+export async function listProviders(): Promise<AIProviderList> {
+  const response = await authenticatedClient.GET("/chat/providers");
+
+  if (response.error) {
+    throw new Error(formatErrorMessage(response.error.detail, "Failed to list providers"));
   }
 
   return response.data;

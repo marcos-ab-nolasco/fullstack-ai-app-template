@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useEffect, useMemo, useState } from "react";
+import * as chatApi from "@/lib/api/chat";
 
 type ProviderOption = {
   id: string;
@@ -71,15 +72,10 @@ export function NewConversationModal({
       setProviderError(null);
 
       try {
-        const response = await fetch("/api/chat/providers");
-        if (!response.ok) {
-          throw new Error(`Failed to load providers: ${response.status}`);
-        }
-
-        const payload = (await response.json()) as { providers?: ProviderOption[] };
+        const data = await chatApi.listProviders();
 
         if (!isMounted) return;
-        setProviders(payload.providers ?? []);
+        setProviders(data.providers ?? []);
       } catch (error) {
         if (!isMounted) return;
         console.error("Failed to load AI providers", error);
