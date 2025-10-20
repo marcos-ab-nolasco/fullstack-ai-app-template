@@ -40,46 +40,42 @@ docker-migrate-create: ## Create new migration in Docker (use MESSAGE="descripti
 	docker compose -f infrastructure/docker-compose.yml exec backend alembic revision --autogenerate -m "$(MESSAGE)"
 
 migrate: ## Run database migrations
-	cd app/backend && uv run alembic upgrade head
+	cd app/backend && alembic upgrade head
 
 migrate-create: ## Create new migration (use MESSAGE="description")
-	cd app/backend && uv run alembic revision --autogenerate -m "$(MESSAGE)"
+	cd app/backend && alembic revision --autogenerate -m "$(MESSAGE)"
 
 migrate-downgrade: ## Rollback last migration
-	cd app/backend && uv run alembic downgrade -1
+	cd app/backend && alembic downgrade -1
 
 lint-backend:
-	cd app/backend && uv run black --check src tests --line-length 100
-	cd app/backend && uv run ruff check src tests
-	cd app/backend && uv run mypy src
+	cd app/backend && black --check src tests --line-length 100
+	cd app/backend && ruff check src tests
+	cd app/backend && mypy src
 
 lint-backend-fix:
-	cd app/backend && uv run black src tests --line-length 100
-	cd app/backend && uv run ruff check --fix src tests
+	cd app/backend && black src tests --line-length 100
+	cd app/backend && ruff check --fix src tests
 
 lint-frontend:
-	cd app/frontend && pnpm lint
-	cd app/frontend && pnpm format:check
-	cd app/frontend && pnpm type-check
+	cd app/frontend && pnpm lint:check && pnpm type-check
 
 lint-frontend-fix:
 	cd app/frontend && pnpm lint:fix
-	cd app/frontend && pnpm format
 
 lint: ## Run linting and formatting checks (backend + frontend)
 	@echo "Linting backend..."
-	cd app/backend && uv run black --check src tests --line-length 100
-	cd app/backend && uv run ruff check src tests
-	cd app/backend && uv run mypy src
+	cd app/backend && black --check src tests --line-length 100
+	cd app/backend && ruff check src tests
+	cd app/backend && mypy src
 	@echo "Linting frontend..."
-	cd app/frontend && pnpm lint
-	cd app/frontend && pnpm format:check
+	cd app/frontend && pnpm lint:check
 	cd app/frontend && pnpm type-check
 
 lint-fix: ## Fix linting issues (backend + frontend)
 	@echo "Fixing backend lint issues..."
-	cd app/backend && uv run black src tests --line-length 100
-	cd app/backend && uv run ruff check --fix src tests
+	cd app/backend && black src tests --line-length 100
+	cd app/backend && ruff check --fix src tests
 	@echo "Fixing frontend lint issues..."
 	cd app/frontend && pnpm lint:fix
 
@@ -93,7 +89,7 @@ test-down: ## Stop test database
 	docker compose -f infrastructure/docker-compose.yml stop postgres_test
 
 test-backend: ## Run backend tests (requires test database running)
-	cd app/backend && uv run pytest -v
+	cd app/backend && pytest -v
 
 test-frontend:
 	cd app/frontend && pnpm test
@@ -102,13 +98,13 @@ test: ## Run all tests (backend + frontend)
 	@echo "Checking if test database is running..."
 	@docker compose -f infrastructure/docker-compose.yml ps postgres_test 2>/dev/null | grep -q "Up" || (echo "Test database not running. Run 'make test-up' first." && exit 1)
 	@echo "Running backend tests..."
-	cd app/backend && uv run pytest -v
+	cd app/backend && pytest -v
 	@echo "Running frontend tests..."
 	cd app/frontend && pnpm test
 
 test-cov: ## Run tests with coverage (backend + frontend)
 	@echo "Running backend tests with coverage..."
-	cd app/backend && uv run pytest --cov=src --cov-report=html --cov-report=term
+	cd app/backend && pytest --cov=src --cov-report=html --cov-report=term
 	@echo "Running frontend tests with coverage..."
 	cd app/frontend && pnpm test:coverage
 

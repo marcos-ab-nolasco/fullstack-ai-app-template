@@ -168,8 +168,9 @@ export async function sendMessage(
 export async function listProviders(): Promise<AIProviderList> {
   const response = await authenticatedClient.GET("/chat/providers");
 
-  if (response.error) {
-    throw new Error(formatErrorMessage(response.error.detail, "Failed to list providers"));
+  // Note: This endpoint only returns 200 responses according to OpenAPI spec
+  if (!response.data) {
+    throw new Error("Failed to list providers");
   }
 
   return response.data;
