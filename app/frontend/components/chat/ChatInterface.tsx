@@ -31,6 +31,13 @@ export function ChatInterface({
   onRetryMessage,
   onRemoveMessage,
 }: ChatInterfaceProps) {
+  // console.log("[DEBUG ChatInterface] Rendered with:", {
+  //   conversationId: conversation?.id,
+  //   messagesCount: messages.length,
+  //   isLoadingMessages,
+  //   messages: messages,
+  // });
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 

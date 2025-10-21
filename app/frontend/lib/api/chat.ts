@@ -7,8 +7,9 @@ type ConversationUpdate = components["schemas"]["ConversationUpdate"];
 type ConversationRead = components["schemas"]["ConversationRead"];
 type ConversationList = components["schemas"]["ConversationList"];
 type MessageCreate = components["schemas"]["MessageCreate"];
-type MessageRead = components["schemas"]["MessageRead"];
 type MessageList = components["schemas"]["MessageList"];
+type MessageCreateResponse = components["schemas"]["MessageCreateResponse"];
+type AIProviderList = components["schemas"]["AIProviderList"];
 
 /**
  * Helper to format error messages from API responses
@@ -141,7 +142,7 @@ export async function getMessages(conversationId: string): Promise<MessageList> 
 export async function sendMessage(
   conversationId: string,
   data: MessageCreate
-): Promise<MessageRead> {
+): Promise<MessageCreateResponse> {
   const response = await authenticatedClient.POST(
     "/chat/conversations/{conversation_id}/messages",
     {
@@ -156,6 +157,20 @@ export async function sendMessage(
 
   if (response.error) {
     throw new Error(formatErrorMessage(response.error.detail, "Failed to send message"));
+  }
+
+  return response.data;
+}
+
+/**
+ * List all available AI providers
+ */
+export async function listProviders(): Promise<AIProviderList> {
+  const response = await authenticatedClient.GET("/chat/providers");
+
+  // Note: This endpoint only returns 200 responses according to OpenAPI spec
+  if (!response.data) {
+    throw new Error("Failed to list providers");
   }
 
   return response.data;

@@ -1,10 +1,13 @@
 from src.schemas.auth import RefreshTokenRequest, Token
 from src.schemas.chat import (
+    AIProvider,
+    AIProviderList,
     ConversationCreate,
     ConversationList,
     ConversationRead,
     ConversationUpdate,
     MessageCreate,
+    MessageCreateResponse,
     MessageList,
     MessageRead,
 )
@@ -22,4 +25,7 @@ __all__ = [
     "MessageCreate",
     "MessageRead",
     "MessageList",
+    "MessageCreateResponse",
+    "AIProvider",
+    "AIProviderList",
 ]

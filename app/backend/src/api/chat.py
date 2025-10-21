@@ -8,15 +8,18 @@ from src.core.dependencies import get_current_user
 from src.db.models import User
 from src.db.session import get_db
 from src.schemas.chat import (
+    AIProviderList,
     ConversationCreate,
     ConversationList,
     ConversationRead,
     ConversationUpdate,
     MessageCreate,
+    MessageCreateResponse,
     MessageList,
     MessageRead,
 )
 from src.services import chat as chat_service
+from src.services.ai import list_ai_providers
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -94,9 +97,19 @@ async def list_messages(
     )
 
 
+@router.get("/providers", response_model=AIProviderList)
+async def list_providers(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> AIProviderList:
+    """Expose configured AI providers for the frontend UI."""
+
+    providers = list_ai_providers()
+    return AIProviderList(providers=providers)
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
-    response_model=MessageRead,
+    response_model=MessageCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_message(
@@ -104,11 +117,12 @@ async def create_message(
     message_data: MessageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> MessageRead:
-    """Create a new message in a conversation.
-
-    Note: In Phase 3, this only stores the message without AI response.
-    AI integration will be added in Phase 4.
-    """
-    message = await chat_service.create_message(db, conversation_id, message_data, current_user.id)
-    return MessageRead.model_validate(message)
+) -> MessageCreateResponse:
+    """Create a new message and trigger the AI-generated assistant reply."""
+    user_message, assistant_message = await chat_service.create_message(
+        db, conversation_id, message_data, current_user.id
+    )
+    return MessageCreateResponse(
+        user_message=MessageRead.model_validate(user_message),
+        assistant_message=MessageRead.model_validate(assistant_message),
+    )

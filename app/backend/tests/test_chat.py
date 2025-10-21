@@ -35,6 +35,22 @@ async def test_create_conversation(
 
 
 @pytest.mark.asyncio
+async def test_list_providers(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    """Providers endpoint should return supported providers from backend registry."""
+
+    response = await client.get("/chat/providers", headers=auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "providers" in data
+    provider_ids = {provider["id"] for provider in data["providers"]}
+    assert {"openai", "anthropic"}.issubset(provider_ids)
+    for provider in data["providers"]:
+        assert "models" in provider
+        assert isinstance(provider["models"], list)
+
+
+@pytest.mark.asyncio
 async def test_list_conversations(
     client: AsyncClient, test_user: User, auth_headers: dict[str, str]
 ) -> None:
@@ -205,10 +221,19 @@ async def test_create_message_generates_ai_response(
 
     assert response.status_code == 201
     data = response.json()
-    assert data["conversation_id"] == conversation_id
-    assert data["role"] == "assistant"
-    assert data["content"] == "AI response"
-    assert data["tokens_used"] is None
+    user_payload = data["user_message"]
+    assistant_payload = data["assistant_message"]
+
+    assert user_payload["conversation_id"] == conversation_id
+    assert user_payload["role"] == "user"
+    assert user_payload["content"] == "Hello, AI!"
+    assert user_payload["tokens_used"] == 10
+    assert user_payload["meta"] == {"test": "data"}
+
+    assert assistant_payload["conversation_id"] == conversation_id
+    assert assistant_payload["role"] == "assistant"
+    assert assistant_payload["content"] == "AI response"
+    assert assistant_payload["tokens_used"] is None
 
     mock_ai_service.generate_response.assert_awaited_once()
     call_args = mock_ai_service.generate_response.await_args
@@ -241,15 +266,10 @@ async def test_list_messages(
     )
     conversation_id = create_response.json()["id"]
 
-    # Create multiple messages
+    # Create user messages (each will generate an assistant response)
     await client.post(
         f"/chat/conversations/{conversation_id}/messages",
         json={"role": "user", "content": "First message"},
-        headers=auth_headers,
-    )
-    await client.post(
-        f"/chat/conversations/{conversation_id}/messages",
-        json={"role": "assistant", "content": "First response"},
         headers=auth_headers,
     )
     await client.post(
@@ -265,12 +285,16 @@ async def test_list_messages(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 3
-    assert len(data["messages"]) == 3
+    # Each user message creates a user + assistant message pair (2 messages x 2 = 4 total)
+    assert data["total"] == 4
+    assert len(data["messages"]) == 4
     # Should be ordered by created_at asc (oldest first)
     assert data["messages"][0]["content"] == "First message"
-    assert data["messages"][1]["content"] == "First response"
+    assert data["messages"][0]["role"] == "user"
+    assert data["messages"][1]["role"] == "assistant"
     assert data["messages"][2]["content"] == "Second message"
+    assert data["messages"][2]["role"] == "user"
+    assert data["messages"][3]["role"] == "assistant"
 
 
 @pytest.mark.asyncio

@@ -171,12 +171,29 @@ export interface paths {
     put?: never;
     /**
      * Create Message
-     * @description Create a new message in a conversation.
-     *
-     *     Note: In Phase 3, this only stores the message without AI response.
-     *     AI integration will be added in Phase 4.
+     * @description Create a new message and trigger the AI-generated assistant reply.
      */
     post: operations["create_message_chat_conversations__conversation_id__messages_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/chat/providers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Providers
+     * @description Expose configured AI providers for the frontend UI.
+     */
+    get: operations["list_providers_chat_providers_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -211,6 +228,38 @@ export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     /**
+     * AIModelOption
+     * @description Schema describing a model option for an AI provider.
+     */
+    AIModelOption: {
+      /** Value */
+      value: string;
+      /** Label */
+      label: string;
+    };
+    /**
+     * AIProvider
+     * @description Schema describing available AI providers.
+     */
+    AIProvider: {
+      /** Id */
+      id: string;
+      /** Label */
+      label: string;
+      /** Models */
+      models: components["schemas"]["AIModelOption"][];
+      /** Is Configured */
+      is_configured: boolean;
+    };
+    /**
+     * AIProviderList
+     * @description Response wrapper for provider listing.
+     */
+    AIProviderList: {
+      /** Providers */
+      providers: components["schemas"]["AIProvider"][];
+    };
+    /**
      * ConversationCreate
      * @description Schema for creating a new conversation.
      */
@@ -224,7 +273,7 @@ export interface components {
       ai_provider: string;
       /**
        * Ai Model
-       * @default gpt-4
+       * @default gpt-3.5-turbo
        */
       ai_model: string;
       /** System Prompt */
@@ -304,6 +353,14 @@ export interface components {
       meta?: {
         [key: string]: unknown;
       } | null;
+    };
+    /**
+     * MessageCreateResponse
+     * @description Schema for the message creation workflow.
+     */
+    MessageCreateResponse: {
+      user_message: components["schemas"]["MessageRead"];
+      assistant_message: components["schemas"]["MessageRead"];
     };
     /**
      * MessageList
@@ -758,7 +815,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["MessageRead"];
+          "application/json": components["schemas"]["MessageCreateResponse"];
         };
       };
       /** @description Validation Error */
@@ -768,6 +825,26 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_providers_chat_providers_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AIProviderList"];
         };
       };
     };
