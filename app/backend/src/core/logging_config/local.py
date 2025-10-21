@@ -14,8 +14,8 @@ _LOG_DEBUG_ROTATE_BACKUPCOUNT = 3
 
 
 def configure_logging() -> None:
-    standard_logformat = "[%(asctime)s][%(levelname)s]: %(message)s"
-    debug_logformat = "[%(asctime)s][%(levelname)s]: %(message)s %(pathname)s:%(lineno)d"
+    standard_logformat = "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s"
+    debug_logformat = "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s %(pathname)s:%(lineno)d"
     formatter = logging.Formatter(standard_logformat)
     debug_formatter = logging.Formatter(debug_logformat)
 
@@ -26,7 +26,8 @@ def configure_logging() -> None:
         console_handler.setFormatter(formatter)
     console_handler.setLevel(settings.LOG_LEVEL)
 
-    log_name = "backend"
+    # Configure root logger "src" to capture all application logs
+    log_name = "src"
 
     log = logging.getLogger(log_name)
     log.handlers = []
@@ -36,7 +37,7 @@ def configure_logging() -> None:
     log_dir = "./logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
-    log_file_path = os.path.join(log_dir, f"{log_name}.log")
+    log_file_path = os.path.join(log_dir, "backend.log")
     file_handler = logging.handlers.RotatingFileHandler(
         log_file_path,
         maxBytes=_LOG_ROTATE_MAXBYTES,
@@ -46,7 +47,7 @@ def configure_logging() -> None:
     file_handler.setLevel(logging.INFO)
     log.addHandler(file_handler)
 
-    debug_log_file_path = os.path.join(log_dir, f"{log_name}.debug.log")
+    debug_log_file_path = os.path.join(log_dir, "backend.debug.log")
     debug_file_handler = logging.handlers.RotatingFileHandler(
         debug_log_file_path,
         maxBytes=_LOG_DEBUG_ROTATE_MAXBYTES,
