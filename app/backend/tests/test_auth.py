@@ -1,5 +1,7 @@
 """Test authentication endpoints."""
 
+import asyncio
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,3 +110,151 @@ async def test_get_current_user_invalid_token(client: AsyncClient) -> None:
     response = await client.get("/auth/me", headers={"Authorization": "Bearer invalid-token"})
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_success(client: AsyncClient, test_user: User) -> None:
+    """Test refresh token generates new access and refresh tokens.
+
+    This test validates the complete refresh flow:
+    1. Login to get initial tokens
+    2. Use refresh token to get new tokens
+    3. Verify new tokens are different from original
+    4. Verify new access token works for authenticated requests
+    """
+    # Step 1: Login to get initial tokens
+    login_response = await client.post(
+        "/auth/login",
+        auth=("test@example.com", "testpassword123"),
+    )
+    assert login_response.status_code == 200
+    tokens = login_response.json()
+    assert "access_token" in tokens
+    assert "refresh_token" in tokens
+
+    # Wait 1 second to ensure new tokens have different exp timestamp
+    await asyncio.sleep(1)
+
+    # Step 2: Use refresh token to get new tokens
+    refresh_response = await client.post(
+        "/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    # This should pass but currently FAILS with 401 due to UUID bug
+    assert refresh_response.status_code == 200
+    new_tokens = refresh_response.json()
+    assert "access_token" in new_tokens
+    assert "refresh_token" in new_tokens
+    assert new_tokens["token_type"] == "bearer"
+
+    # Step 3: Verify new tokens are different (rotated)
+    assert new_tokens["access_token"] != tokens["access_token"]
+    assert new_tokens["refresh_token"] != tokens["refresh_token"]
+
+    # Step 4: Verify new access token works for authenticated requests
+    me_response = await client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {new_tokens['access_token']}"}
+    )
+    assert me_response.status_code == 200
+    user_data = me_response.json()
+    assert user_data["email"] == test_user.email
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_with_invalid_format(client: AsyncClient) -> None:
+    """Test refresh token endpoint rejects malformed tokens."""
+    response = await client.post(
+        "/auth/refresh",
+        json={"refresh_token": "not-a-valid-jwt-token"},
+    )
+
+    assert response.status_code == 401
+    assert "Could not validate" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_with_access_token(client: AsyncClient, test_user: User) -> None:
+    """Test refresh token endpoint rejects access tokens (wrong type)."""
+    # Login to get tokens
+    login_response = await client.post(
+        "/auth/login",
+        auth=("test@example.com", "testpassword123"),
+    )
+    tokens = login_response.json()
+
+    # Try to refresh using access token instead of refresh token
+    response = await client.post(
+        "/auth/refresh",
+        json={"refresh_token": tokens["access_token"]},  # Wrong token type!
+    )
+
+    assert response.status_code == 401
+    assert "Could not validate" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_with_expired_token(client: AsyncClient) -> None:
+    """Test refresh token endpoint rejects expired tokens.
+
+    Note: This creates a token with exp in the past to simulate expiration.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from jose import jwt
+
+    from src.core.config import get_settings
+
+    settings = get_settings()
+
+    # Create an expired refresh token (exp 1 hour ago)
+    expired_payload = {
+        "sub": "00000000-0000-0000-0000-000000000000",
+        "exp": datetime.now(UTC) - timedelta(hours=1),
+        "type": "refresh",
+    }
+    expired_token = jwt.encode(
+        expired_payload,
+        settings.SECRET_KEY.get_secret_value(),
+        algorithm=settings.ALGORITHM,
+    )
+
+    response = await client.post(
+        "/auth/refresh",
+        json={"refresh_token": expired_token},
+    )
+
+    assert response.status_code == 401
+    assert "Could not validate" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_with_nonexistent_user(client: AsyncClient) -> None:
+    """Test refresh token endpoint rejects tokens for users that don't exist."""
+    from datetime import UTC, datetime, timedelta
+
+    from jose import jwt
+
+    from src.core.config import get_settings
+
+    settings = get_settings()
+
+    # Create a valid token for a non-existent user
+    fake_user_payload = {
+        "sub": "00000000-0000-0000-0000-000000000000",  # Non-existent UUID
+        "exp": datetime.now(UTC) + timedelta(days=7),
+        "type": "refresh",
+    }
+    fake_token = jwt.encode(
+        fake_user_payload,
+        settings.SECRET_KEY.get_secret_value(),
+        algorithm=settings.ALGORITHM,
+    )
+
+    response = await client.post(
+        "/auth/refresh",
+        json={"refresh_token": fake_token},
+    )
+
+    assert response.status_code == 401
+    assert "Could not validate" in response.json()["detail"]

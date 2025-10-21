@@ -1,5 +1,6 @@
 import logging
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -110,7 +111,8 @@ async def refresh(
         if user_id_str is None:
             raise credentials_exception
 
-        user_id = int(user_id_str)
+        # Convert string UUID to UUID object (User.id is UUID type)
+        user_id = UUID(user_id_str)
 
     except (ValueError, TypeError) as e:
         logger.warning("Token refresh failed: reason=invalid_token_format")
