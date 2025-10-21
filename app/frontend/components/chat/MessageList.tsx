@@ -17,10 +17,17 @@ export function MessageList({
   onRetryMessage,
   onRemoveMessage,
 }: MessageListProps) {
+  // console.log("[DEBUG MessageList] Rendered with:", {
+  //   messagesCount: messages.length,
+  //   isLoading,
+  //   messages: messages,
+  // });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+    // console.log("[DEBUG MessageList useEffect] Messages changed, count:", messages.length);
     // Small delay to ensure DOM is updated
     const timer = setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

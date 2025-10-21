@@ -11,6 +11,7 @@ describe("Chat Store (Zustand)", () => {
     useChatStore.setState({
       conversations: [],
       currentConversationId: null,
+      currentConversation: null,
       messages: [],
       isLoadingConversations: false,
       isLoadingMessages: false,
@@ -647,6 +648,227 @@ describe("Chat Store (Zustand)", () => {
       const state = useChatStore.getState();
       expect(state.currentConversationId).toBeNull();
       expect(state.conversations).toEqual([]);
+    });
+  });
+
+  // ========================================
+  // CRITICAL TESTS: These would have caught the getter bug!
+  // ========================================
+  describe("currentConversation State Management (Bug Prevention)", () => {
+    const mockConv1 = {
+      id: "conv-1",
+      user_id: "user-123",
+      title: "Chat 1",
+      ai_provider: "openai",
+      ai_model: "gpt-4",
+      system_prompt: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const mockConv2 = {
+      id: "conv-2",
+      user_id: "user-123",
+      title: "Chat 2",
+      ai_provider: "anthropic",
+      ai_model: "claude-3-opus",
+      system_prompt: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    describe("selectConversation", () => {
+      it("CRITICAL: should update currentConversation when selecting from existing list", () => {
+        // Setup: Load conversations first
+        useChatStore.setState({
+          conversations: [mockConv1, mockConv2],
+          currentConversationId: null,
+          currentConversation: null,
+        });
+
+        // Act: Select conversation
+        useChatStore.getState().selectConversation("conv-2");
+
+        // Assert: currentConversation MUST be updated
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBe("conv-2");
+        expect(state.currentConversation).not.toBeNull(); // ← WOULD FAIL with getter!
+        expect(state.currentConversation?.id).toBe("conv-2");
+        expect(state.currentConversation).toEqual(mockConv2);
+      });
+
+      it("CRITICAL: should set currentConversation to null when conversation not found", () => {
+        useChatStore.setState({
+          conversations: [mockConv1],
+          currentConversationId: null,
+          currentConversation: null,
+        });
+
+        // Select conversation that doesn't exist
+        useChatStore.getState().selectConversation("non-existent");
+
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBe("non-existent");
+        expect(state.currentConversation).toBeNull(); // ← Should be null since not found
+      });
+
+      it("should clear currentConversation when deselecting", () => {
+        useChatStore.setState({
+          conversations: [mockConv1],
+          currentConversationId: "conv-1",
+          currentConversation: mockConv1,
+        });
+
+        useChatStore.getState().selectConversation(null);
+
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBeNull();
+        expect(state.currentConversation).toBeNull();
+      });
+    });
+
+    describe("loadConversations", () => {
+      it("CRITICAL: should restore currentConversation after loading if ID matches", async () => {
+        // Setup: User had selected a conversation before
+        useChatStore.setState({
+          conversations: [],
+          currentConversationId: "conv-2", // Selected before reload
+          currentConversation: null, // Lost after reload
+        });
+
+        vi.mocked(chatApi.listConversations).mockResolvedValueOnce({
+          conversations: [mockConv1, mockConv2],
+          total: 2,
+        });
+
+        // Act: Load conversations (simulates page refresh)
+        await useChatStore.getState().loadConversations();
+
+        // Assert: Should restore currentConversation
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBe("conv-2");
+        expect(state.currentConversation).not.toBeNull(); // ← CRITICAL!
+        expect(state.currentConversation?.id).toBe("conv-2");
+      });
+
+      it("should set currentConversation to null if ID doesn't match loaded list", async () => {
+        useChatStore.setState({
+          currentConversationId: "non-existent",
+          currentConversation: null,
+        });
+
+        vi.mocked(chatApi.listConversations).mockResolvedValueOnce({
+          conversations: [mockConv1],
+          total: 1,
+        });
+
+        await useChatStore.getState().loadConversations();
+
+        const state = useChatStore.getState();
+        expect(state.currentConversation).toBeNull();
+      });
+    });
+
+    describe("createConversation", () => {
+      it("CRITICAL: should set new conversation as currentConversation", async () => {
+        const newConv = {
+          id: "conv-new",
+          user_id: "user-123",
+          title: "New Chat",
+          ai_provider: "openai",
+          ai_model: "gpt-4",
+          system_prompt: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        vi.mocked(chatApi.createConversation).mockResolvedValueOnce(newConv);
+
+        await useChatStore.getState().createConversation({
+          title: "New Chat",
+          ai_provider: "openai",
+          ai_model: "gpt-4",
+        });
+
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBe("conv-new");
+        expect(state.currentConversation).not.toBeNull(); // ← CRITICAL!
+        expect(state.currentConversation?.id).toBe("conv-new");
+        expect(state.currentConversation).toEqual(newConv);
+      });
+    });
+
+    describe("updateConversation", () => {
+      it("CRITICAL: should update currentConversation if updating current one", async () => {
+        const updated = { ...mockConv1, title: "Updated Title" };
+
+        useChatStore.setState({
+          conversations: [mockConv1, mockConv2],
+          currentConversationId: "conv-1",
+          currentConversation: mockConv1,
+        });
+
+        vi.mocked(chatApi.updateConversation).mockResolvedValueOnce(updated);
+
+        await useChatStore.getState().updateConversation("conv-1", { title: "Updated Title" });
+
+        const state = useChatStore.getState();
+        expect(state.currentConversation?.title).toBe("Updated Title");
+        expect(state.currentConversation).toEqual(updated);
+      });
+
+      it("should NOT update currentConversation if updating different conversation", async () => {
+        const updated = { ...mockConv2, title: "Updated Title" };
+
+        useChatStore.setState({
+          conversations: [mockConv1, mockConv2],
+          currentConversationId: "conv-1",
+          currentConversation: mockConv1,
+        });
+
+        vi.mocked(chatApi.updateConversation).mockResolvedValueOnce(updated);
+
+        await useChatStore.getState().updateConversation("conv-2", { title: "Updated Title" });
+
+        const state = useChatStore.getState();
+        expect(state.currentConversation).toEqual(mockConv1); // Unchanged
+        expect(state.currentConversation?.title).toBe("Chat 1");
+      });
+    });
+
+    describe("deleteConversation", () => {
+      it("CRITICAL: should clear currentConversation if deleting current one", async () => {
+        useChatStore.setState({
+          conversations: [mockConv1, mockConv2],
+          currentConversationId: "conv-1",
+          currentConversation: mockConv1,
+        });
+
+        vi.mocked(chatApi.deleteConversation).mockResolvedValueOnce(undefined);
+
+        await useChatStore.getState().deleteConversation("conv-1");
+
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBeNull();
+        expect(state.currentConversation).toBeNull(); // ← CRITICAL!
+        expect(state.messages).toEqual([]);
+      });
+
+      it("should keep currentConversation if deleting different conversation", async () => {
+        useChatStore.setState({
+          conversations: [mockConv1, mockConv2],
+          currentConversationId: "conv-1",
+          currentConversation: mockConv1,
+        });
+
+        vi.mocked(chatApi.deleteConversation).mockResolvedValueOnce(undefined);
+
+        await useChatStore.getState().deleteConversation("conv-2");
+
+        const state = useChatStore.getState();
+        expect(state.currentConversationId).toBe("conv-1");
+        expect(state.currentConversation).toEqual(mockConv1); // Unchanged
+      });
     });
   });
 });

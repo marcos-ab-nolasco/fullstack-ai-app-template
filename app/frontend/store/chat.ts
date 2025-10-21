@@ -51,26 +51,27 @@ export const useChatStore = create<ChatState>()(
       // Initial state
       conversations: [],
       currentConversationId: null,
+      currentConversation: null,
       messages: [],
       isLoadingConversations: false,
       isLoadingMessages: false,
       isSendingMessage: false,
       error: null,
 
-      // Computed property
-      get currentConversation() {
-        const { conversations, currentConversationId } = get();
-        return conversations.find((c) => c.id === currentConversationId) || null;
-      },
-
       // Load all conversations
       loadConversations: async () => {
         set({ isLoadingConversations: true, error: null });
         try {
           const response = await chatApi.listConversations();
-          set({
-            conversations: response.conversations,
-            isLoadingConversations: false,
+          set((state) => {
+            const conversations = response.conversations;
+            const currentConversation =
+              conversations.find((c) => c.id === state.currentConversationId) ?? null;
+            return {
+              conversations,
+              currentConversation,
+              isLoadingConversations: false,
+            };
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to load conversations";
@@ -87,6 +88,7 @@ export const useChatStore = create<ChatState>()(
           set((state) => ({
             conversations: [conversation, ...state.conversations],
             currentConversationId: conversation.id,
+            currentConversation: conversation,
             messages: [], // Clear messages when switching to new conversation
           }));
           return conversation;
@@ -102,9 +104,16 @@ export const useChatStore = create<ChatState>()(
         set({ error: null });
         try {
           const updated = await chatApi.updateConversation(conversationId, data);
-          set((state) => ({
-            conversations: state.conversations.map((c) => (c.id === conversationId ? updated : c)),
-          }));
+          set((state) => {
+            const conversations = state.conversations.map((c) =>
+              c.id === conversationId ? updated : c
+            );
+            const isCurrent = state.currentConversationId === conversationId;
+            return {
+              conversations,
+              currentConversation: isCurrent ? updated : state.currentConversation,
+            };
+          });
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to update conversation";
           set({ error: message });
@@ -119,12 +128,17 @@ export const useChatStore = create<ChatState>()(
           await chatApi.deleteConversation(conversationId);
           set((state) => {
             const newConversations = state.conversations.filter((c) => c.id !== conversationId);
+            const deletingCurrent = state.currentConversationId === conversationId;
+            const currentConversation = deletingCurrent
+              ? null
+              : (newConversations.find((c) => c.id === state.currentConversationId) ??
+                state.currentConversation);
             return {
               conversations: newConversations,
               // If deleting current conversation, clear selection
-              currentConversationId:
-                state.currentConversationId === conversationId ? null : state.currentConversationId,
-              messages: state.currentConversationId === conversationId ? [] : state.messages,
+              currentConversationId: deletingCurrent ? null : state.currentConversationId,
+              currentConversation,
+              messages: deletingCurrent ? [] : state.messages,
             };
           });
         } catch (error) {
@@ -136,23 +150,37 @@ export const useChatStore = create<ChatState>()(
 
       // Select a conversation
       selectConversation: (conversationId: string | null) => {
-        set({
-          currentConversationId: conversationId,
-          messages: [], // Clear messages when switching conversations
-          error: null,
+        set((state) => {
+          const currentConversation =
+            conversationId === null
+              ? null
+              : (state.conversations.find((c) => c.id === conversationId) ?? null);
+          return {
+            currentConversationId: conversationId,
+            currentConversation,
+            messages: [], // Clear messages when switching conversations
+            error: null,
+          };
         });
       },
 
       // Load messages for a conversation
       loadMessages: async (conversationId: string) => {
+        // console.log("[DEBUG loadMessages] Starting for conversationId:", conversationId);
         set({ isLoadingMessages: true, error: null });
         try {
+          // console.log("[DEBUG loadMessages] Calling API...");
           const response = await chatApi.getMessages(conversationId);
+          // console.log("[DEBUG loadMessages] API response:", response);
+          // console.log("[DEBUG loadMessages] Messages array:", response.messages);
+          // console.log("[DEBUG loadMessages] Messages count:", response.messages?.length ?? 0);
           set({
             messages: response.messages,
             isLoadingMessages: false,
           });
+          // console.log("[DEBUG loadMessages] State updated successfully");
         } catch (error) {
+          console.error("[DEBUG loadMessages] Error:", error);
           const message = error instanceof Error ? error.message : "Failed to load messages";
           set({ error: message, isLoadingMessages: false });
           throw error;

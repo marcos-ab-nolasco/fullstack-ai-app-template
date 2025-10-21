@@ -95,11 +95,7 @@ test-frontend:
 	cd app/frontend && pnpm test
 
 test: ## Run all tests (backend + frontend)
-	@echo "Checking if test database is running..."
-	@docker compose -f infrastructure/docker-compose.yml ps postgres_test 2>/dev/null | grep -q "Up" || (echo "Test database not running. Run 'make test-up' first." && exit 1)
-	@echo "Running backend tests..."
 	cd app/backend && pytest -v
-	@echo "Running frontend tests..."
 	cd app/frontend && pnpm test
 
 test-cov: ## Run tests with coverage (backend + frontend)

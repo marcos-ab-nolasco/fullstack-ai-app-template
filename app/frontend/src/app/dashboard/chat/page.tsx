@@ -32,6 +32,14 @@ export default function ChatPage() {
     clearError,
   } = useChatStore();
 
+  // console.log("[DEBUG page.tsx useChatStore]", {
+  //   conversationsCount: conversations.length,
+  //   currentConversationId,
+  //   currentConversationExists: currentConversation !== null,
+  //   currentConversationId_fromObject: currentConversation?.id,
+  //   messagesCount: messages.length,
+  // });
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
@@ -50,10 +58,15 @@ export default function ChatPage() {
 
   // Load messages when conversation changes
   useEffect(() => {
+    // console.log("[DEBUG useEffect] Triggered with currentConversationId:", currentConversationId);
+    // console.log("[DEBUG useEffect] Current messages count:", messages.length);
     if (currentConversationId) {
+      // console.log("[DEBUG useEffect] Calling loadMessages...");
       loadMessages(currentConversationId).catch((error) => {
         console.error("Failed to load messages:", error);
       });
+    } else {
+      console.log("[DEBUG useEffect] No conversation selected, skipping");
     }
   }, [currentConversationId, loadMessages]);
 
