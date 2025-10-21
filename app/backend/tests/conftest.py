@@ -85,7 +85,7 @@ async def test_engine():
     """
     settings = get_settings()
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        settings.DATABASE_URL.get_secret_value(),
         echo=False,
         future=True,
         poolclass=NullPool,  # No connection pooling - each op gets fresh connection
