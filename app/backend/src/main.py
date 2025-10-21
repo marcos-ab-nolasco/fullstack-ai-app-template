@@ -11,7 +11,7 @@ app = FastAPI(
     title="Fullstack Template API",
     description="FastAPI backend with authentication and AI integration",
     version=__version__,
-    debug=get_settings().DEBUG,
+    debug=get_settings().LOG_LEVEL == "DEBUG",
     openapi_url="/api/v1/openapi.json",
     lifespan=lifespan,
 )
