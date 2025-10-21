@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -11,6 +12,8 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 from src.core.config import get_settings
 
 from .base import BaseAIService
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIService(BaseAIService):
@@ -29,6 +32,7 @@ class OpenAIService(BaseAIService):
     ) -> str:
         """Generate a completion using OpenAI with retry logic."""
         if self._client is None:
+            logger.warning("OpenAI provider not configured: missing OPENAI_API_KEY")
             return "OpenAI não está configurado. Defina OPENAI_API_KEY para habilitar respostas automáticas."
 
         client = self._client
@@ -42,11 +46,18 @@ class OpenAIService(BaseAIService):
                 retry=retry_if_exception_type(Exception),
             ):
                 with attempt:
+                    if attempt.retry_state.attempt_number > 1:
+                        logger.warning(
+                            f"OpenAI retry attempt {attempt.retry_state.attempt_number}/3: model={model}"
+                        )
                     response = await client.chat.completions.create(
                         model=model,
                         messages=payload,  # type: ignore[arg-type]
                     )
         except Exception as exc:  # noqa: BLE001 - upstream errors vary
+            logger.error(
+                f"OpenAI call failed after retries: model={model} error={type(exc).__name__}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to generate response from OpenAI: {exc}",

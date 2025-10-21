@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,6 +23,8 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 basic_auth_scheme = HTTPBasic()
 
+logger = logging.getLogger(__name__)
+
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(
@@ -34,6 +37,7 @@ async def register(
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
+        logger.warning(f"Registration failed: email={user_data.email} reason=already_exists")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
@@ -50,6 +54,8 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
+    logger.info(f"User registered: user_id={new_user.id} email={new_user.email}")
+
     return new_user
 
 
@@ -65,6 +71,7 @@ async def login(
 
     # Verify user and password
     if not user or not verify_password(credentials.password, user.hashed_password):
+        logger.warning(f"Login failed: email={credentials.username} reason=invalid_credentials")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -74,6 +81,8 @@ async def login(
     # Create tokens (sub must be string)
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+    logger.info(f"Login successful: user_id={user.id} email={user.email}")
 
     return Token(access_token=access_token, refresh_token=refresh_token)
 
@@ -104,6 +113,7 @@ async def refresh(
         user_id = int(user_id_str)
 
     except (ValueError, TypeError) as e:
+        logger.warning("Token refresh failed: reason=invalid_token_format")
         raise credentials_exception from e
 
     # Verify user exists
@@ -111,6 +121,7 @@ async def refresh(
     user = result.scalar_one_or_none()
 
     if user is None:
+        logger.warning(f"Token refresh failed: reason=user_not_found user_id={user_id}")
         raise credentials_exception
 
     # Create new tokens (sub must be string)

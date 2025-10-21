@@ -15,7 +15,7 @@ _LOG_DEBUG_ROTATE_BACKUPCOUNT = 3
 
 def configure_logging() -> None:
     standard_logformat = "[%(asctime)s][%(levelname)s]: %(message)s"
-    debug_logformat = "[%(asctime)s][%(levelname)s]: %(message)s %(pathname)s"
+    debug_logformat = "[%(asctime)s][%(levelname)s]: %(message)s %(pathname)s:%(lineno)d"
     formatter = logging.Formatter(standard_logformat)
     debug_formatter = logging.Formatter(debug_logformat)
 

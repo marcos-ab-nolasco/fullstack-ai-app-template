@@ -1,3 +1,5 @@
+import logging
+import time
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -7,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models import Conversation, Message
 from src.schemas.chat import ConversationCreate, ConversationUpdate, MessageCreate
 from src.services.ai import get_ai_service
+
+logger = logging.getLogger(__name__)
 
 
 async def get_conversation_by_id(
@@ -35,6 +39,10 @@ async def get_conversation_by_id(
         )
 
     if conversation.user_id != user_id:
+        logger.warning(
+            f"Unauthorized conversation access: conv_id={conversation_id} "
+            f"user_id={user_id} owner_id={conversation.user_id}"
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to access this conversation",
@@ -86,6 +94,11 @@ async def create_conversation(
     await db.commit()
     await db.refresh(new_conversation)
 
+    logger.info(
+        f"Conversation created: conv_id={new_conversation.id} user_id={user_id} "
+        f"provider={conversation_data.ai_provider} model={conversation_data.ai_model}"
+    )
+
     return new_conversation
 
 
@@ -134,6 +147,8 @@ async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: 
 
     await db.delete(conversation)
     await db.commit()
+
+    logger.info(f"Conversation deleted: conv_id={conversation_id} user_id={user_id}")
 
 
 async def get_conversation_messages(
@@ -198,6 +213,12 @@ async def create_message(
     messages_history = await get_conversation_messages(db, conversation_id, user_id)
     ai_messages = [{"role": msg.role, "content": msg.content} for msg in messages_history]
 
+    logger.info(
+        f"AI request started: conv_id={conversation_id} provider={conversation.ai_provider} "
+        f"model={conversation.ai_model}"
+    )
+
+    start_time = time.time()
     try:
         ai_service = get_ai_service(conversation.ai_provider)
         ai_response = await ai_service.generate_response(
@@ -205,14 +226,27 @@ async def create_message(
             conversation.ai_model,
             conversation.system_prompt,
         )
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            f"AI request completed: conv_id={conversation_id} provider={conversation.ai_provider} "
+            f"duration_ms={duration_ms} response_length={len(ai_response)}"
+        )
     except HTTPException:
         raise
     except ValueError as exc:
+        logger.error(
+            f"AI request failed: conv_id={conversation_id} provider={conversation.ai_provider} "
+            f"error=ValueError: {str(exc)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:  # noqa: BLE001 - convert unexpected errors to HTTPException
+        logger.error(
+            f"AI request failed: conv_id={conversation_id} provider={conversation.ai_provider} "
+            f"error={type(exc).__name__}: {str(exc)}"
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to generate AI response: {exc}",

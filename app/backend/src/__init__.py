@@ -1,4 +1,4 @@
-from src.core.local_logging import configure_logging
+from src.core.logging_config.local import configure_logging
 
 from .version import __version__
 
