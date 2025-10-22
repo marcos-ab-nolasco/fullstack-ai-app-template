@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: SecretStr
+    CACHE_PREFIX: str = "app_cache"
 
     # Security
     SECRET_KEY: SecretStr

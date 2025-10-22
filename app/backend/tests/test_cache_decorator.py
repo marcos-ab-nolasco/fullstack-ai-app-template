@@ -5,8 +5,11 @@ from typing import Any, Callable, Generator
 import pytest
 
 from src.core.cache.client import get_redis_sync_client
+from src.core.cache.decorator import get_local_redis_cache
 from src.core.cache.decorator import RedisCache, hash_key
 
+# redis_client = get_redis_sync_client()
+# redis_cache = get_local_redis_cache()
 
 @pytest.fixture
 def redis_client() -> Generator[Any, None, None]:
@@ -18,7 +21,7 @@ def redis_client() -> Generator[Any, None, None]:
 
 @pytest.fixture
 def redis_cache(redis_client: Any) -> RedisCache:
-    return RedisCache(redis_client, prefix="tcache")
+    return RedisCache(redis_client, prefix="test_cache")
 
 
 def collect_call_counter() -> dict[str, int]:
@@ -94,7 +97,7 @@ def test_cache_uses_custom_namespace(redis_cache: RedisCache, redis_client: Any)
 
     assert work(4) == 5
     key = next(iter(decode_keys(redis_client)))
-    assert key.startswith("tcache:custom:")
+    assert key.startswith("test_cache:custom:")
 
 
 def test_cache_defaults_namespace_to_module_and_qualname(redis_cache: RedisCache, redis_client: Any) -> None:
@@ -106,7 +109,7 @@ def test_cache_defaults_namespace_to_module_and_qualname(redis_cache: RedisCache
     assert sample(10) == 9
     key = next(iter(decode_keys(redis_client)))
     expected_namespace = f"{sample.__module__}.{sample.__qualname__}"
-    assert key.startswith(f"tcache:{expected_namespace}:")
+    assert key.startswith(f"test_cache:{expected_namespace}:")
 
 
 def test_cache_uses_validation_function(redis_cache: RedisCache) -> None:
@@ -269,7 +272,7 @@ def test_cache_helper_methods_expose_cache_controls(redis_cache: RedisCache, red
     key = work.cache_key_for(5)
     expected_hash = hash_key((5,), {})
     expected_namespace = f"{work.__module__}.{work.__qualname__}"
-    assert key == f"tcache:{expected_namespace}:{expected_hash}"
+    assert key == f"test_cache:{expected_namespace}:{expected_hash}"
     assert work.cache_namespace == expected_namespace
 
 
