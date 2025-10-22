@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const refreshCookieName = process.env.NEXT_PUBLIC_REFRESH_COOKIE_NAME || "refresh_token";
 
   // Get auth token from cookies (Zustand persist stores in localStorage, not accessible in middleware)
   // For now, we'll handle auth checks client-side in the pages
@@ -17,7 +18,13 @@ export function middleware(request: NextRequest) {
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
 
   if (isProtectedRoute && !isPublicRoute) {
-    // TODO: enforce auth once tokens are available in middleware
+    const refreshCookie = request.cookies.get(refreshCookieName);
+
+    if (!refreshCookie || !refreshCookie.value) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   // For now, let client-side handle redirects
