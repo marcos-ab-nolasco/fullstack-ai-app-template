@@ -1,7 +1,6 @@
-"""Pytest configuration and fixtures."""
-
-# CRITICAL: Load .env.test BEFORE any imports from src
+from fakeredis import FakeRedis
 from pathlib import Path
+from unittest.mock import patch
 
 from dotenv import load_dotenv
 
@@ -144,6 +143,15 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def patch_redis() -> Generator[Any, Any, Any]:
+    with patch("src.core.cache.client.Redis.from_url", return_value=FakeRedis()):
+        from src.core.cache.client import get_redis_sync_client
+
+        get_redis_sync_client.cache_clear()
+        yield
 
 
 @pytest.fixture

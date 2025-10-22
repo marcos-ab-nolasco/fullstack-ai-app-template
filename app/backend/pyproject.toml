@@ -36,6 +36,7 @@ dev = [
     "ruff",
     "mypy",
     "types-python-jose",
+    "fakeredis",
 ]
 
 [tool.hatch.version]

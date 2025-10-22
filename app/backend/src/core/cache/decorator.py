@@ -103,60 +103,140 @@ class RedisCache:
         )
 
         def decorator(func: FuncType) -> FuncType:
-            @wraps(func)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
-                key_args = tuple(
-                    value for index, value in enumerate(args) if index not in ignore_positionals_set
+            resolved_namespace = namespace or f"{func.__module__}.{func.__qualname__}"
+            base_components = [component for component in (self.prefix, resolved_namespace) if component]
+            key_prefix = ":".join(base_components)
+
+            def _normalize_parameters(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> tuple[
+                tuple[Any, ...], dict[str, Any]
+            ]:
+                filtered_args = tuple(
+                    value for index, value in enumerate(call_args) if index not in ignore_positionals_set
                 )
-                key_kwargs = {key: value for key, value in kwargs.items() if key not in ignore_kw_set}
+                filtered_kwargs = {
+                    key: value for key, value in call_kwargs.items() if key not in ignore_kw_set
+                }
+                return filtered_args, filtered_kwargs
 
-                key_components = [self.prefix]
-                if namespace:
-                    key_components.append(namespace)
-                key_components.append(key_serializer(key_args, key_kwargs))
-                cache_key = ":".join(component for component in key_components if component)
-                lock_key = f"{cache_key}:lock"
+            def _build_cache_key(
+                call_args: tuple[Any, ...],
+                call_kwargs: dict[str, Any],
+            ) -> tuple[str, tuple[Any, ...], dict[str, Any]]:
+                filtered_args, filtered_kwargs = _normalize_parameters(call_args, call_kwargs)
+                hashed = key_serializer(filtered_args, filtered_kwargs)
+                cache_key = ":".join([key_prefix, hashed]) if hashed else key_prefix
+                return cache_key, filtered_args, filtered_kwargs
 
-                def _load_cached_response() -> Optional[CacheResponse]:
-                    try:
-                        raw_value = self.client.get(cache_key)
-                    except Exception:
-                        return None
-
-                    if raw_value is None:
-                        return None
-
-                    try:
-                        cached_value = deserializer(raw_value)
-                    except Exception:
-                        if ignore_validation_error:
-                            return None
-                        raise
-
-                    if not isinstance(cached_value, dict):
-                        return None
-
-                    if "value" not in cached_value:
-                        return None
-
-                    return cast(CacheResponse, cached_value)
-
-                def _resolve_cached_value() -> Optional[Any]:
-                    cached_response = _load_cached_response()
-                    if cached_response is None:
-                        return None
-
-                    try:
-                        if validation_func is None or validation_func(args, kwargs, cached_response):
-                            return cached_response["value"]
-                    except Exception:
-                        if not ignore_validation_error:
-                            raise
-                        return None
-
+            def _load_cached_response(cache_key: str) -> Optional[CacheResponse]:
+                try:
+                    raw_value = self.client.get(cache_key)
+                except Exception:
                     return None
 
-                cached_result = _resolve_cached_value()
+                if raw_value is None:
+                    return None
+
+                try:
+                    cached_value = deserializer(raw_value)
+                except Exception:
+                    if ignore_validation_error:
+                        return None
+                    raise
+
+                if not isinstance(cached_value, dict):
+                    return None
+
+                if "value" not in cached_value:
+                    return None
+
+                return cast(CacheResponse, cached_value)
+
+            def _resolve_cached_value(
+                call_args: tuple[Any, ...],
+                call_kwargs: dict[str, Any],
+                *,
+                precomputed_cache_key: Optional[str] = None,
+            ) -> Optional[Any]:
+                cache_key_local = precomputed_cache_key
+                if cache_key_local is None:
+                    cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
+
+                cached_response = _load_cached_response(cache_key_local)
+                if cached_response is None:
+                    return None
+
+                try:
+                    if validation_func is None or validation_func(call_args, call_kwargs, cached_response):
+                        return cached_response["value"]
+                except Exception:
+                    if not ignore_validation_error:
+                        raise
+                    return None
+
+                return None
+
+            def _invalidate(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> int:
+                cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
+                try:
+                    return int(self.client.delete(cache_key_local) or 0)
+                except Exception:
+                    if ignore_validation_error:
+                        return 0
+                    raise
+
+            def _get_cached_timestamp(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> Optional[Union[float, int]]:
+                cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
+                cached_response = _load_cached_response(cache_key_local)
+                if cached_response is None:
+                    return None
+
+                timestamp = cached_response.get("timestamp")
+                if isinstance(timestamp, (int, float)):
+                    return timestamp
+
+                if ignore_validation_error:
+                    return None
+
+                raise TypeError(f"Invalid cache timestamp type: {type(timestamp)}")
+
+            def _invalidate_all() -> int:
+                pattern = f"{key_prefix}:*"
+                deleted = 0
+                batch: list[Any] = []
+
+                try:
+                    for cache_key in self.client.scan_iter(pattern):
+                        batch.append(cache_key)
+                        if len(batch) >= 128:
+                            deleted += int(self.client.delete(*batch) or 0)
+                            batch.clear()
+                    if batch:
+                        deleted += int(self.client.delete(*batch) or 0)
+                except Exception:
+                    if ignore_validation_error:
+                        return deleted
+                    raise
+
+                return deleted
+
+            def _is_cached(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> bool:
+                cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
+                try:
+                    return bool(self.client.exists(cache_key_local))
+                except Exception:
+                    if ignore_validation_error:
+                        return False
+                    raise
+
+            def _has_valid_value(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> bool:
+                return _resolve_cached_value(call_args, call_kwargs) is not None
+
+            @wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                cache_key, key_args, key_kwargs = _build_cache_key(args, kwargs)
+                lock_key = f"{cache_key}:lock"
+
+                cached_result = _resolve_cached_value(args, kwargs, precomputed_cache_key=cache_key)
                 if cached_result is not None:
                     return cached_result
 
@@ -167,7 +247,9 @@ class RedisCache:
                     lock_ttl = max(int(math.ceil(concurrent_max_wait_time)), 1)
 
                     while time.monotonic() < deadline:
-                        cached_result = _resolve_cached_value()
+                        cached_result = _resolve_cached_value(
+                            args, kwargs, precomputed_cache_key=cache_key
+                        )
                         if cached_result is not None:
                             return cached_result
 
@@ -183,7 +265,9 @@ class RedisCache:
                         time.sleep(effective_check_interval)
 
                     if not have_lock:
-                        cached_result = _resolve_cached_value()
+                        cached_result = _resolve_cached_value(
+                            args, kwargs, precomputed_cache_key=cache_key
+                        )
                         if cached_result is not None:
                             return cached_result
 
@@ -238,6 +322,25 @@ class RedisCache:
                             pass
 
                 return result
+
+            wrapper.invalidate = lambda *call_args, **call_kwargs: _invalidate(  # type: ignore[attr-defined]
+                call_args, call_kwargs
+            )
+            wrapper.invalidate_all = lambda: _invalidate_all()  # type: ignore[attr-defined]
+            wrapper.is_cached = lambda *call_args, **call_kwargs: _is_cached(  # type: ignore[attr-defined]
+                call_args, call_kwargs
+            )
+            wrapper.has_valid_value = lambda *call_args, **call_kwargs: _has_valid_value(  # type: ignore[attr-defined]
+                call_args, call_kwargs
+            )
+            wrapper.get_cached_timestamp = lambda *call_args, **call_kwargs: _get_cached_timestamp(  # type: ignore[attr-defined]
+                call_args, call_kwargs
+            )
+            wrapper.cache_instance = self  # type: ignore[attr-defined]
+            wrapper.cache_key_for = lambda *call_args, **call_kwargs: _build_cache_key(  # type: ignore[attr-defined]
+                call_args, call_kwargs
+            )[0]
+            wrapper.cache_namespace = resolved_namespace  # type: ignore[attr-defined]
 
             return cast(FuncType, wrapper)
 
