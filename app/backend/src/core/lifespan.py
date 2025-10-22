@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from src.core.cache.client import get_redis_client
 from src.db.session import get_engine
 
 # from path/to/client import get_redis_client
@@ -12,14 +13,14 @@ from src.db.session import get_engine
 log = logging.getLogger(__name__)
 
 
-# def _check_connection_redis_server() -> None:
-#     log.debug("Verificando conexão com servidor de cache")
-#     get_redis_sync_client().ping()
+async def _check_connection_redis_server() -> None:
+    log.debug("Verificando conexão com servidor de cache")
+    await get_redis_client().ping()  # type: ignore[misc]
 
 
-# def _close_connection_redis_server() -> None:
-#     log.debug("Encerrando conexão com servidor de cache")
-#     get_redis_sync_client().close()
+async def _close_connection_redis_server() -> None:
+    log.debug("Encerrando conexão com servidor de cache")
+    await get_redis_client().close()
 
 
 async def _check_connection_postgres_server() -> None:
@@ -43,10 +44,10 @@ async def _close_connection_postgres_server() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
-    # _check_connection_redis_server()
+    await _check_connection_redis_server()
     await _check_connection_postgres_server()
 
     yield
 
     await _close_connection_postgres_server()
-    # _close_connection_redis_server()
+    await _close_connection_redis_server()

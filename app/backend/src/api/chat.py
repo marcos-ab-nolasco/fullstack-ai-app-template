@@ -1,10 +1,11 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.dependencies import get_current_user
+from src.core.rate_limit import limiter_authenticated
 from src.db.models import User
 from src.db.session import get_db
 from src.schemas.chat import (
@@ -103,7 +104,7 @@ async def list_providers(
 ) -> AIProviderList:
     """Expose configured AI providers for the frontend UI."""
 
-    providers = list_ai_providers()
+    providers = await list_ai_providers()
     return AIProviderList(providers=providers)
 
 
@@ -112,7 +113,9 @@ async def list_providers(
     response_model=MessageCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter_authenticated.limit("10/minute")
 async def create_message(
+    request: Request,
     conversation_id: UUID,
     message_data: MessageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],

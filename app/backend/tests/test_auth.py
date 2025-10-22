@@ -1,7 +1,5 @@
 """Test authentication endpoints."""
 
-import asyncio
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,8 +54,9 @@ async def test_login_success(client: AsyncClient, test_user: User) -> None:
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
-    assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+    cookies = response.cookies
+    assert "refresh_token" in cookies
 
 
 @pytest.mark.asyncio
@@ -122,7 +121,9 @@ async def test_refresh_token_success(client: AsyncClient, test_user: User) -> No
     3. Verify new tokens are different from original
     4. Verify new access token works for authenticated requests
     """
-    # Step 1: Login to get initial tokens
+    import asyncio
+
+    # Step 1: Login to get initial tokens and cookie
     login_response = await client.post(
         "/auth/login",
         auth=("test@example.com", "testpassword123"),
@@ -130,27 +131,28 @@ async def test_refresh_token_success(client: AsyncClient, test_user: User) -> No
     assert login_response.status_code == 200
     tokens = login_response.json()
     assert "access_token" in tokens
-    assert "refresh_token" in tokens
+
+    original_cookie = login_response.cookies.get("refresh_token")
+    assert original_cookie is not None
 
     # Wait 1 second to ensure new tokens have different exp timestamp
     await asyncio.sleep(1)
 
     # Step 2: Use refresh token to get new tokens
-    refresh_response = await client.post(
-        "/auth/refresh",
-        json={"refresh_token": tokens["refresh_token"]},
-    )
+    refresh_response = await client.post("/auth/refresh")
 
     # This should pass but currently FAILS with 401 due to UUID bug
     assert refresh_response.status_code == 200
     new_tokens = refresh_response.json()
     assert "access_token" in new_tokens
-    assert "refresh_token" in new_tokens
     assert new_tokens["token_type"] == "bearer"
+
+    rotated_cookie = refresh_response.cookies.get("refresh_token")
+    assert rotated_cookie is not None
+    assert rotated_cookie != original_cookie
 
     # Step 3: Verify new tokens are different (rotated)
     assert new_tokens["access_token"] != tokens["access_token"]
-    assert new_tokens["refresh_token"] != tokens["refresh_token"]
 
     # Step 4: Verify new access token works for authenticated requests
     me_response = await client.get(
@@ -162,99 +164,71 @@ async def test_refresh_token_success(client: AsyncClient, test_user: User) -> No
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_with_invalid_format(client: AsyncClient) -> None:
-    """Test refresh token endpoint rejects malformed tokens."""
-    response = await client.post(
-        "/auth/refresh",
-        json={"refresh_token": "not-a-valid-jwt-token"},
-    )
+async def test_refresh_token_requires_cookie(client: AsyncClient) -> None:
+    """Refresh without cookie should fail."""
+    response = await client.post("/auth/refresh")
 
     assert response.status_code == 401
     assert "Could not validate" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_with_access_token(client: AsyncClient, test_user: User) -> None:
-    """Test refresh token endpoint rejects access tokens (wrong type)."""
-    # Login to get tokens
+async def test_refresh_token_with_invalid_session(client: AsyncClient, test_user: User) -> None:
+    """Refresh with unknown session id should fail."""
+    # Seed cookie with random token
+    client.cookies.set("refresh_token", "invalid-session", domain="testserver", path="/")
+
+    response = await client.post("/auth/refresh")
+
+    assert response.status_code == 401
+    assert "Could not validate" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_invalidated_when_user_deleted(
+    client: AsyncClient, db_session: AsyncSession, test_user: User
+) -> None:
+    """If the user no longer exists, refresh should fail and clear cookie."""
+
     login_response = await client.post(
         "/auth/login",
         auth=("test@example.com", "testpassword123"),
     )
-    tokens = login_response.json()
+    assert login_response.status_code == 200
 
-    # Try to refresh using access token instead of refresh token
-    response = await client.post(
-        "/auth/refresh",
-        json={"refresh_token": tokens["access_token"]},  # Wrong token type!
-    )
+    # Delete user from DB
+    await db_session.delete(test_user)
+    await db_session.commit()
+
+    response = await client.post("/auth/refresh")
 
     assert response.status_code == 401
     assert "Could not validate" in response.json()["detail"]
+    assert "refresh_token" not in response.cookies
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_with_expired_token(client: AsyncClient) -> None:
-    """Test refresh token endpoint rejects expired tokens.
+async def test_logout_clears_session(
+    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+) -> None:
+    """Logout should clear cookie and invalidate refresh session."""
 
-    Note: This creates a token with exp in the past to simulate expiration.
-    """
-    from datetime import UTC, datetime, timedelta
-
-    from jose import jwt
-
-    from src.core.config import get_settings
-
-    settings = get_settings()
-
-    # Create an expired refresh token (exp 1 hour ago)
-    expired_payload = {
-        "sub": "00000000-0000-0000-0000-000000000000",
-        "exp": datetime.now(UTC) - timedelta(hours=1),
-        "type": "refresh",
-    }
-    expired_token = jwt.encode(
-        expired_payload,
-        settings.SECRET_KEY.get_secret_value(),
-        algorithm=settings.ALGORITHM,
+    login_response = await client.post(
+        "/auth/login",
+        auth=("test@example.com", "testpassword123"),
     )
+    assert login_response.status_code == 200
+    cookie_before = login_response.cookies.get("refresh_token")
+    assert cookie_before is not None
 
-    response = await client.post(
-        "/auth/refresh",
-        json={"refresh_token": expired_token},
-    )
+    logout_response = await client.post("/auth/logout", headers=auth_headers)
+    assert logout_response.status_code == 200
+    assert logout_response.json()["message"] == "Successfully logged out"
 
-    assert response.status_code == 401
-    assert "Could not validate" in response.json()["detail"]
+    cookie_after = logout_response.cookies.get("refresh_token")
+    assert cookie_after is None
 
-
-@pytest.mark.asyncio
-async def test_refresh_token_with_nonexistent_user(client: AsyncClient) -> None:
-    """Test refresh token endpoint rejects tokens for users that don't exist."""
-    from datetime import UTC, datetime, timedelta
-
-    from jose import jwt
-
-    from src.core.config import get_settings
-
-    settings = get_settings()
-
-    # Create a valid token for a non-existent user
-    fake_user_payload = {
-        "sub": "00000000-0000-0000-0000-000000000000",  # Non-existent UUID
-        "exp": datetime.now(UTC) + timedelta(days=7),
-        "type": "refresh",
-    }
-    fake_token = jwt.encode(
-        fake_user_payload,
-        settings.SECRET_KEY.get_secret_value(),
-        algorithm=settings.ALGORITHM,
-    )
-
-    response = await client.post(
-        "/auth/refresh",
-        json={"refresh_token": fake_token},
-    )
-
-    assert response.status_code == 401
-    assert "Could not validate" in response.json()["detail"]
+    # Attempt refresh with previous cookie should fail (not automatically sent, so set manually)
+    client.cookies.set("refresh_token", cookie_before, domain="testserver", path="/")
+    refresh_response = await client.post("/auth/refresh")
+    assert refresh_response.status_code == 401

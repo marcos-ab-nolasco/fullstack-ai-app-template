@@ -1,4 +1,4 @@
-from src.schemas.auth import RefreshTokenRequest, Token
+from src.schemas.auth import Token
 from src.schemas.chat import (
     AIProvider,
     AIProviderList,
@@ -14,7 +14,6 @@ from src.schemas.chat import (
 from src.schemas.user import UserCreate, UserRead
 
 __all__ = [
-    "RefreshTokenRequest",
     "Token",
     "UserCreate",
     "UserRead",

@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.cache.decorator import redis_cache_decorator
 from src.core.security import decode_token
 from src.db.models.user import User
 from src.db.session import get_db
@@ -14,6 +15,28 @@ from src.db.session import get_db
 http_bearer_scheme = HTTPBearer()
 
 logger = logging.getLogger(__name__)
+
+
+@redis_cache_decorator(
+    ttl=180,
+    ignore_positionals=[0],
+    namespace="auth.user_by_id",
+)
+async def _get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
+    """Fetch user by ID from database (cached).
+
+    This internal function is cached to reduce database load for authentication.
+    The cache key is based on user_id, making it resilient to token refresh.
+
+    Args:
+        db: Database session
+        user_id: User UUID
+
+    Returns:
+        User object if found, None otherwise
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
 
 
 async def get_current_user(
@@ -52,9 +75,8 @@ async def get_current_user(
         logger.warning(f"Invalid token: reason=invalid_uuid_format user_id_str={user_id_str}")
         raise credentials_exception from e
 
-    # Fetch user from database
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    # Fetch user from database (cached by user_id)
+    user = await _get_user_by_id(db, user_id)
 
     if user is None:
         logger.warning(f"Invalid token: reason=user_not_found user_id={user_id}")

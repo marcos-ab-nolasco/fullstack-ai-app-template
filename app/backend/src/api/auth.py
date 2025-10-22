@@ -2,22 +2,26 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.dependencies import get_current_user
-from src.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    hash_password,
-    verify_password,
+from src.core.auth.session import (
+    clear_refresh_cookie,
+    create_session,
+    delete_session,
+    get_session,
+    replace_session,
+    set_refresh_cookie,
 )
+from src.core.config import get_settings
+from src.core.dependencies import get_current_user
+from src.core.rate_limit import limiter
+from src.core.security import create_access_token, hash_password, verify_password
 from src.db.models.user import User
 from src.db.session import get_db
-from src.schemas.auth import RefreshTokenRequest, Token
+from src.schemas.auth import Token
 from src.schemas.user import UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -25,10 +29,13 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 basic_auth_scheme = HTTPBasic()
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     user_data: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
@@ -61,9 +68,12 @@ async def register(
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     credentials: Annotated[HTTPBasicCredentials, Depends(basic_auth_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    response: Response,
 ) -> Token:
     """Login with email and password to get access and refresh tokens."""
     # Find user by email
@@ -81,16 +91,19 @@ async def login(
 
     # Create tokens (sub must be string)
     access_token = create_access_token(data={"sub": str(user.id)})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    refresh_token = await create_session(str(user.id))
+
+    set_refresh_cookie(response, refresh_token)
 
     logger.info(f"Login successful: user_id={user.id} email={user.email}")
 
-    return Token(access_token=access_token, refresh_token=refresh_token)
+    return Token(access_token=access_token)
 
 
 @router.post("/refresh", response_model=Token)
 async def refresh(
-    refresh_data: RefreshTokenRequest,
+    request: Request,
+    response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Token:
     """Refresh access token using refresh token."""
@@ -100,23 +113,24 @@ async def refresh(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    refresh_cookie = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if refresh_cookie is None:
+        logger.warning("Token refresh failed: reason=missing_cookie")
+        raise credentials_exception
+
+    session = await get_session(refresh_cookie)
+    if session is None:
+        logger.warning("Token refresh failed: reason=invalid_session")
+        clear_refresh_cookie(response)
+        raise credentials_exception
+
     try:
-        payload = decode_token(refresh_data.refresh_token)
-
-        # Check token type
-        if payload.get("type") != "refresh":
-            raise credentials_exception
-
-        user_id_str: str | None = payload.get("sub")
-        if user_id_str is None:
-            raise credentials_exception
-
-        # Convert string UUID to UUID object (User.id is UUID type)
-        user_id = UUID(user_id_str)
-
-    except (ValueError, TypeError) as e:
-        logger.warning("Token refresh failed: reason=invalid_token_format")
-        raise credentials_exception from e
+        user_id = UUID(session["user_id"])
+    except (ValueError, TypeError) as err:
+        logger.warning("Token refresh failed: reason=invalid_session_user")
+        await delete_session(refresh_cookie)
+        clear_refresh_cookie(response)
+        raise credentials_exception from err
 
     # Verify user exists
     result = await db.execute(select(User).where(User.id == user_id))
@@ -124,18 +138,35 @@ async def refresh(
 
     if user is None:
         logger.warning(f"Token refresh failed: reason=user_not_found user_id={user_id}")
+        await delete_session(refresh_cookie)
+        clear_refresh_cookie(response)
         raise credentials_exception
 
-    # Create new tokens (sub must be string)
-    access_token = create_access_token(data={"sub": str(user.id)})
-    new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
+    # Rotate session cookie and mint new access token
+    new_refresh_token = await replace_session(refresh_cookie, str(user.id))
+    set_refresh_cookie(response, new_refresh_token)
 
-    return Token(access_token=access_token, refresh_token=new_refresh_token)
+    access_token = create_access_token(data={"sub": str(user.id)})
+
+    return Token(access_token=access_token)
 
 
 @router.post("/logout")
-async def logout() -> dict[str, str]:
-    """Logout user (token blacklist will be implemented with Redis in Phase 7)."""
+async def logout(
+    request: Request,
+    response: Response,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict[str, str]:
+    """Logout user by deleting refresh session and clearing cookie."""
+
+    refresh_cookie = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if refresh_cookie:
+        await delete_session(refresh_cookie)
+
+    clear_refresh_cookie(response)
+
+    logger.info("Logout successful: user_id=%s", current_user.id)
+
     return {"message": "Successfully logged out"}
 
 

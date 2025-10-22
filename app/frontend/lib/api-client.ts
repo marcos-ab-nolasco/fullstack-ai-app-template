@@ -3,12 +3,17 @@ import type { paths } from "@/types/api";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export const apiClient = createClient<paths>({ baseUrl });
+const withCredentialsFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, credentials: "include" });
+
+const createClientInstance = () => createClient<paths>({ baseUrl, fetch: withCredentialsFetch });
+
+export const apiClient = createClientInstance();
 
 /**
  * API client with authentication token injection and auto-refresh on 401
  */
-export const authenticatedClient = createClient<paths>({ baseUrl });
+export const authenticatedClient = createClientInstance();
 
 // Store for refresh callback (set by auth store)
 let refreshTokenCallback: (() => Promise<void>) | null = null;
@@ -56,6 +61,6 @@ export function setAuthToken(token: string | null) {
  */
 export function clearAuthToken() {
   // Create a new client instance without auth headers
-  Object.assign(authenticatedClient, createClient<paths>({ baseUrl }));
+  Object.assign(authenticatedClient, createClientInstance());
   refreshTokenCallback = null;
 }

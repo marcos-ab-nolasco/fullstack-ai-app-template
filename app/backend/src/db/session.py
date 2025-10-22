@@ -24,7 +24,7 @@ def get_engine() -> AsyncEngine:
 
     settings = get_settings()
     return create_async_engine(
-        settings.DATABASE_URL,
+        settings.DATABASE_URL.get_secret_value(),
         echo=settings.LOG_LEVEL == "DEBUG",
         future=True,
     )

@@ -23,6 +23,7 @@ dependencies = [
     "openai",
     "anthropic",
     "tenacity",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,7 @@ dev = [
     "ruff",
     "mypy",
     "types-python-jose",
+    "fakeredis",
 ]
 
 [tool.hatch.version]
@@ -88,4 +90,5 @@ asyncio_mode = "auto"
 addopts = "-v --strict-markers"
 markers = [
     "asyncio: mark test as async",
+    "slow: mark test as slow (requires waiting)",
 ]

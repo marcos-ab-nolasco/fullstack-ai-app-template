@@ -10,7 +10,6 @@ interface AuthState {
   // State
   user: UserRead | null;
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -20,6 +19,7 @@ interface AuthState {
   register: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  initializeSession: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -29,7 +29,6 @@ export const useAuthStore = create<AuthState>()(
       // Initial state
       user: null,
       accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -44,7 +43,6 @@ export const useAuthStore = create<AuthState>()(
           set({
             user,
             accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -84,7 +82,6 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: null,
             accessToken: null,
-            refreshToken: null,
             isAuthenticated: false,
             error: null,
           });
@@ -93,16 +90,11 @@ export const useAuthStore = create<AuthState>()(
 
       // Refresh token action
       refreshAuth: async () => {
-        const { refreshToken } = get();
-        if (!refreshToken) {
-          throw new Error("No refresh token available");
-        }
-
         try {
-          const tokens = await authApi.refreshToken(refreshToken);
+          const tokens = await authApi.refreshToken();
           set({
             accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
+            isAuthenticated: true,
           });
 
           setRefreshTokenCallback(async () => {
@@ -115,6 +107,22 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      initializeSession: async () => {
+        try {
+          const tokens = await authApi.refreshToken();
+          set({ accessToken: tokens.access_token, isAuthenticated: true });
+          const user = await authApi.getCurrentUser();
+          set({ user, isAuthenticated: true });
+          setRefreshTokenCallback(async () => {
+            await get().refreshAuth();
+          });
+        } catch {
+          // Session not available; ensure clean state
+          clearAuthToken();
+          set({ user: null, accessToken: null, isAuthenticated: false });
+        }
+      },
+
       // Clear error action
       clearError: () => set({ error: null }),
     }),
@@ -123,17 +131,17 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
-        // Restore auth token when store rehydrates from localStorage
-        if (state?.accessToken) {
-          setAuthToken(state.accessToken);
-          // Register refresh callback for auto-refresh on 401
+        const accessToken = state?.accessToken;
+        if (accessToken) {
+          setAuthToken(accessToken);
           setRefreshTokenCallback(async () => {
             await useAuthStore.getState().refreshAuth();
           });
+        } else {
+          void useAuthStore.getState().initializeSession();
         }
       },
     }

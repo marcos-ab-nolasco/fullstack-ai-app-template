@@ -1,9 +1,8 @@
-"""Pytest configuration and fixtures."""
-
-# CRITICAL: Load .env.test BEFORE any imports from src
 from pathlib import Path
+from unittest.mock import patch
 
 from dotenv import load_dotenv
+from fakeredis.aioredis import FakeRedis
 
 root_path = Path(__file__).parent
 print(f"Loading test environment from: {root_path / '.env.test'}")
@@ -25,6 +24,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+from src.core.cache.client import get_redis_client  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
 from src.db.models.user import User  # noqa: E402
 from src.db.session import Base, get_db  # noqa: E402
@@ -85,7 +85,7 @@ async def test_engine():
     """
     settings = get_settings()
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        settings.DATABASE_URL.get_secret_value(),
         echo=False,
         future=True,
         poolclass=NullPool,  # No connection pooling - each op gets fresh connection
@@ -144,6 +144,33 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def patch_redis() -> Generator[Any, Any, Any]:
+    with patch("src.core.cache.client.Redis.from_url", return_value=FakeRedis()):
+
+        get_redis_client.cache_clear()
+        yield
+
+
+@pytest.fixture(autouse=True)
+async def clear_redis(patch_redis: Any):
+    """Clear Redis cache and rate limit storage before/after each test."""
+    from src.core.rate_limit import limiter, limiter_authenticated
+
+    client = get_redis_client()
+    await client.flushdb()
+
+    # Clear rate limit storage (memory storage for tests)
+    limiter.reset()
+    limiter_authenticated.reset()
+
+    yield
+
+    await client.flushdb()
+    limiter.reset()
+    limiter_authenticated.reset()
 
 
 @pytest.fixture

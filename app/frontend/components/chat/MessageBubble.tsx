@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,7 +15,7 @@ interface MessageBubbleProps {
   onRemove?: () => void;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   role,
   content,
   timestamp,
@@ -29,9 +30,9 @@ export function MessageBubble({
   const isFailed = status === "failed";
   const isSending = status === "sending";
 
-  // Format timestamp to relative or absolute
-  const formatTimestamp = (isoString: string) => {
-    const date = new Date(isoString);
+  // Memoize timestamp formatting to avoid recalculation on every render
+  const formattedTimestamp = useMemo(() => {
+    const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -50,7 +51,7 @@ export function MessageBubble({
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
+  }, [timestamp]);
 
   return (
     <div
@@ -162,7 +163,7 @@ export function MessageBubble({
               "text-yellow-700": isSystem,
             })}
           >
-            <span>{formatTimestamp(timestamp)}</span>
+            <span>{formattedTimestamp}</span>
 
             {/* Tokens badge (only for assistant messages) */}
             {!isUser && !isSystem && tokensUsed !== null && tokensUsed !== undefined && (
@@ -213,4 +214,4 @@ export function MessageBubble({
       </div>
     </div>
   );
-}
+});
