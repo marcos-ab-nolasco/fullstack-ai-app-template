@@ -3,7 +3,12 @@ import type { components } from "@/types/api";
 
 type UserCreate = components["schemas"]["UserCreate"];
 type UserRead = components["schemas"]["UserRead"];
-type Token = components["schemas"]["Token"];
+
+export interface TokenResponse {
+  access_token: string;
+  token_type?: string;
+  refresh_token?: string | null;
+}
 
 type ValidationErrorDetail = components["schemas"]["HTTPValidationError"]["detail"] | undefined;
 
@@ -62,7 +67,7 @@ export async function register(params: RegisterParams): Promise<UserRead> {
 /**
  * Login with email and password
  */
-export async function login(params: LoginParams): Promise<Token> {
+export async function login(params: LoginParams): Promise<TokenResponse> {
   const { data, error } = await apiClient.POST("/auth/login", {
     headers: {
       Authorization: `Basic ${btoa(`${params.email}:${params.password}`)}`,
@@ -73,7 +78,6 @@ export async function login(params: LoginParams): Promise<Token> {
     throw new Error(extractErrorMessage(error as unknown, "Login failed"));
   }
 
-  // Set token for future authenticated requests
   setAuthToken(data.access_token);
 
   return data;
@@ -82,16 +86,13 @@ export async function login(params: LoginParams): Promise<Token> {
 /**
  * Refresh access token using refresh token
  */
-export async function refreshToken(refreshToken: string): Promise<Token> {
-  const { data, error } = await apiClient.POST("/auth/refresh", {
-    body: { refresh_token: refreshToken },
-  });
+export async function refreshToken(): Promise<TokenResponse> {
+  const { data, error } = await apiClient.POST("/auth/refresh");
 
   if (error) {
     throw new Error(extractErrorMessage(error as unknown, "Token refresh failed"));
   }
 
-  // Update token for future authenticated requests
   setAuthToken(data.access_token);
 
   return data;

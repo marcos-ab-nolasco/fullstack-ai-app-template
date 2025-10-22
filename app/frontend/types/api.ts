@@ -75,7 +75,7 @@ export interface paths {
     put?: never;
     /**
      * Logout
-     * @description Logout user (token blacklist will be implemented with Redis in Phase 7).
+     * @description Logout user by deleting refresh session and clearing cookie.
      */
     post: operations["logout_auth_logout_post"];
     delete?: never;
@@ -404,14 +404,6 @@ export interface components {
       created_at: string;
     };
     /**
-     * RefreshTokenRequest
-     * @description Refresh token request schema.
-     */
-    RefreshTokenRequest: {
-      /** Refresh Token */
-      refresh_token: string;
-    };
-    /**
      * Token
      * @description Token response schema.
      */
@@ -419,7 +411,7 @@ export interface components {
       /** Access Token */
       access_token: string;
       /** Refresh Token */
-      refresh_token: string;
+      refresh_token?: string | null;
       /**
        * Token Type
        * @default bearer
@@ -547,11 +539,7 @@ export interface operations {
       path?: never;
       cookie?: never;
     };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["RefreshTokenRequest"];
-      };
-    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       200: {
@@ -560,15 +548,6 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Token"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
