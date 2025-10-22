@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 async def _check_connection_redis_server() -> None:
     log.debug("Verificando conexão com servidor de cache")
-    await get_redis_client().ping()
+    await get_redis_client().ping()  # type: ignore[misc]
 
 
 async def _close_connection_redis_server() -> None:

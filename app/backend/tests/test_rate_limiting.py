@@ -51,7 +51,10 @@ async def test_register_rate_limited_by_ip(client: AsyncClient) -> None:
             },
         )
         # Should be 201 (created) or 400 (email exists), but NOT 429
-        assert response.status_code in (201, 400), f"Request {i+1} got unexpected status {response.status_code}"
+        assert response.status_code in (
+            201,
+            400,
+        ), f"Request {i+1} got unexpected status {response.status_code}"
 
     # 6th request should be rate limited
     response = await client.post(

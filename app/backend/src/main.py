@@ -11,8 +11,8 @@ from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
 from src.core.rate_limit import limiter, limiter_authenticated
-from src.middleware.user_state import UserStateMiddleware
 from src.db.session import get_async_sessionmaker
+from src.middleware.user_state import UserStateMiddleware
 from src.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ app = FastAPI(
 # Configure rate limiting
 app.state.limiter = limiter
 app.state.limiter_authenticated = limiter_authenticated
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 
 # Configure CORS

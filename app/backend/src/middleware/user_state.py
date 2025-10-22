@@ -5,9 +5,11 @@ BEFORE rate limiting is applied, allowing per-user rate limits on authenticated 
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from src.core.security import decode_token
 
@@ -17,7 +19,9 @@ logger = logging.getLogger(__name__)
 class UserStateMiddleware(BaseHTTPMiddleware):
     """Middleware to extract user_id from JWT and populate request.state."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         """Extract user_id from Authorization header and store in request.state."""
         # Extract token from Authorization header
         auth_header = request.headers.get("Authorization")

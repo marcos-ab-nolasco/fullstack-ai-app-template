@@ -9,7 +9,6 @@ describe("MessageBubble Performance", () => {
     // React.memo returns a special component type
     expect(MessageBubble).toBeDefined();
     expect(typeof MessageBubble).toBe("object");
-    // @ts-ignore - accessing internal property for testing
     expect(MessageBubble.$$typeof?.toString()).toContain("react.memo");
   });
 
@@ -80,24 +79,14 @@ describe("MessageBubble Performance", () => {
 
 describe("MessageBubble Rendering", () => {
   it("renders user message correctly", () => {
-    render(
-      <MessageBubble
-        role="user"
-        content="Hello world"
-        timestamp="2024-01-01T12:00:00Z"
-      />
-    );
+    render(<MessageBubble role="user" content="Hello world" timestamp="2024-01-01T12:00:00Z" />);
 
     expect(screen.getByText("Hello world")).toBeInTheDocument();
   });
 
   it("renders assistant message with markdown", () => {
     render(
-      <MessageBubble
-        role="assistant"
-        content="**Bold text**"
-        timestamp="2024-01-01T12:00:00Z"
-      />
+      <MessageBubble role="assistant" content="**Bold text**" timestamp="2024-01-01T12:00:00Z" />
     );
 
     // ReactMarkdown should render bold
