@@ -92,7 +92,6 @@ describe("Auth API Functions", () => {
     it("should use apiClient with Basic auth header", async () => {
       const mockTokens = {
         access_token: "access-token-123",
-        refresh_token: "refresh-token-456",
         token_type: "bearer",
       };
 
@@ -138,7 +137,6 @@ describe("Auth API Functions", () => {
     it("should use apiClient to refresh token", async () => {
       const mockTokens = {
         access_token: "new-access-token",
-        refresh_token: "new-refresh-token",
         token_type: "bearer",
       };
 
@@ -147,12 +145,9 @@ describe("Auth API Functions", () => {
         error: undefined,
       } as any);
 
-      const refreshToken = "old-refresh-token";
-      const result = await authApi.refreshToken(refreshToken);
+      const result = await authApi.refreshToken();
 
-      expect(apiClient.POST).toHaveBeenCalledWith("/auth/refresh", {
-        body: { refresh_token: refreshToken },
-      });
+      expect(apiClient.POST).toHaveBeenCalledWith("/auth/refresh");
       expect(setAuthToken).toHaveBeenCalledWith(mockTokens.access_token);
       expect(result).toEqual(mockTokens);
     });
@@ -163,7 +158,7 @@ describe("Auth API Functions", () => {
         error: { detail: "Invalid refresh token" },
       } as any);
 
-      await expect(authApi.refreshToken("invalid-token")).rejects.toThrow("Invalid refresh token");
+      await expect(authApi.refreshToken()).rejects.toThrow("Invalid refresh token");
       expect(setAuthToken).not.toHaveBeenCalled();
     });
   });
