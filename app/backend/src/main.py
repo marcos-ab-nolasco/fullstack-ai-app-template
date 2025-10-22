@@ -3,11 +3,15 @@ import logging
 # import time
 from fastapi import FastAPI  # , Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from src.api import auth, chat
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
+from src.core.rate_limit import limiter, limiter_authenticated
+from src.middleware.user_state import UserStateMiddleware
 from src.db.session import get_async_sessionmaker
 from src.version import __version__
 
@@ -22,6 +26,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure rate limiting
+app.state.limiter = limiter
+app.state.limiter_authenticated = limiter_authenticated
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Configure CORS
 app.add_middleware(
@@ -31,6 +40,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add middleware to populate user_id in request.state (must be before rate limiting)
+app.add_middleware(UserStateMiddleware)
 
 app.add_middleware(LoggingMiddleware)
 

@@ -156,10 +156,21 @@ def patch_redis() -> Generator[Any, Any, Any]:
 
 @pytest.fixture(autouse=True)
 async def clear_redis(patch_redis: Any):
+    """Clear Redis cache and rate limit storage before/after each test."""
+    from src.core.rate_limit import limiter, limiter_authenticated
+
     client = get_redis_client()
     await client.flushdb()
+
+    # Clear rate limit storage (memory storage for tests)
+    limiter.reset()
+    limiter_authenticated.reset()
+
     yield
+
     await client.flushdb()
+    limiter.reset()
+    limiter_authenticated.reset()
 
 
 @pytest.fixture
