@@ -5,7 +5,7 @@ class Token(BaseModel):
     """Token response schema."""
 
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
 
 
@@ -15,9 +15,3 @@ class TokenPayload(BaseModel):
     sub: str | None = None  # UUID as string in JWT
     exp: int | None = None
     type: str | None = None
-
-
-class RefreshTokenRequest(BaseModel):
-    """Refresh token request schema."""
-
-    refresh_token: str
