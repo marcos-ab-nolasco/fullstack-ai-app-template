@@ -1,10 +1,9 @@
-import threading
-import time
+import asyncio
 from typing import Any
 
 import pytest
 
-from src.core.cache.client import get_redis_sync_client
+from src.core.cache.client import get_redis_client
 from src.core.cache.decorator import hash_key, redis_cache_decorator
 from src.core.config import get_settings
 
@@ -13,54 +12,56 @@ def collect_call_counter() -> dict[str, int]:
     return {"count": 0}
 
 
-def decode_keys(pattern: str = "*") -> set[str]:
-    redis_client = get_redis_sync_client()
-    return {
-        key.decode() if isinstance(key, bytes) else key for key in redis_client.scan_iter(pattern)
-    }
+async def decode_keys(pattern: str = "*") -> set[str]:
+    redis_client = get_redis_client()
+    keys: set[str] = set()
+    async for key in redis_client.scan_iter(pattern):
+        decoded = key.decode() if isinstance(key, bytes) else key
+        keys.add(decoded)
+    return keys
 
 
-def test_cache_returns_cached_value() -> None:
+async def test_cache_returns_cached_value() -> None:
     counter = collect_call_counter()
 
     @redis_cache_decorator()
-    def add(a: int, b: int) -> int:
+    async def add(a: int, b: int) -> int:
         counter["count"] += 1
         return a + b
 
-    assert add(1, 2) == 3
-    assert add(1, 2) == 3
+    assert await add(1, 2) == 3
+    assert await add(1, 2) == 3
     assert counter["count"] == 1
-    assert len(decode_keys()) == 1
+    assert len(await decode_keys()) == 1
 
 
-def test_cache_ignores_selected_positionals() -> None:
+async def test_cache_ignores_selected_positionals() -> None:
     counter = collect_call_counter()
 
     @redis_cache_decorator(ignore_positionals=[0])
-    def combine(_ignored: str, value: int) -> int:
+    async def combine(_ignored: str, value: int) -> int:
         counter["count"] += 1
         return value * 2
 
-    assert combine("first", 3) == 6
-    assert combine("second", 3) == 6
+    assert await combine("first", 3) == 6
+    assert await combine("second", 3) == 6
     assert counter["count"] == 1
 
 
-def test_cache_ignores_selected_keywords() -> None:
+async def test_cache_ignores_selected_keywords() -> None:
     counter = collect_call_counter()
 
     @redis_cache_decorator(ignore_kw=["noise"])
-    def operate(value: int, *, noise: int, scale: int) -> int:
+    async def operate(value: int, *, noise: int, scale: int) -> int:
         counter["count"] += 1
         return value * scale
 
-    assert operate(5, noise=1, scale=2) == 10
-    assert operate(5, noise=999, scale=2) == 10
+    assert await operate(5, noise=1, scale=2) == 10
+    assert await operate(5, noise=999, scale=2) == 10
     assert counter["count"] == 1
 
 
-def test_cache_custom_key_serializer_receives_filtered_arguments() -> None:
+async def test_cache_custom_key_serializer_receives_filtered_arguments() -> None:
     seen: dict[str, Any] = {}
 
     def serializer(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
@@ -69,36 +70,36 @@ def test_cache_custom_key_serializer_receives_filtered_arguments() -> None:
         return "static"
 
     @redis_cache_decorator(ignore_positionals=[0], ignore_kw=["debug"], key_serializer=serializer)
-    def target(_noise: str, value: int, *, debug: bool, flag: str) -> str:
+    async def target(_noise: str, value: int, *, debug: bool, flag: str) -> str:
         return f"{value}:{flag}"
 
-    assert target("ignored", 7, debug=True, flag="ok") == "7:ok"
+    assert await target("ignored", 7, debug=True, flag="ok") == "7:ok"
     assert seen["args"] == (7,)
     assert seen["kwargs"] == {"flag": "ok"}
 
 
-def test_cache_uses_custom_namespace() -> None:
+async def test_cache_uses_custom_namespace() -> None:
     @redis_cache_decorator(namespace="custom")
-    def work(value: int) -> int:
+    async def work(value: int) -> int:
         return value + 1
 
-    assert work(4) == 5
-    key = next(iter(decode_keys()))
+    assert await work(4) == 5
+    key = next(iter(await decode_keys()))
     assert key.startswith("test_cache:custom:")
 
 
-def test_cache_defaults_namespace_to_module_and_qualname() -> None:
+async def test_cache_defaults_namespace_to_module_and_qualname() -> None:
     @redis_cache_decorator()
-    def sample(value: int) -> int:
+    async def sample(value: int) -> int:
         return value - 1
 
-    assert sample(10) == 9
-    key = next(iter(decode_keys()))
+    assert await sample(10) == 9
+    key = next(iter(await decode_keys()))
     expected_namespace = f"{sample.__module__}.{sample.__qualname__}"
     assert key.startswith(f"test_cache:{expected_namespace}:")
 
 
-def test_cache_uses_validation_function() -> None:
+async def test_cache_uses_validation_function() -> None:
     counter = collect_call_counter()
     validation_calls: list[tuple[tuple[Any, ...], dict[str, Any], Any]] = []
 
@@ -107,94 +108,94 @@ def test_cache_uses_validation_function() -> None:
         return True
 
     @redis_cache_decorator(validation_func=validation)
-    def compute(value: int) -> int:
+    async def compute(value: int) -> int:
         counter["count"] += 1
         return value * value
 
-    assert compute(3) == 9
-    assert compute(3) == 9
+    assert await compute(3) == 9
+    assert await compute(3) == 9
     assert counter["count"] == 1
     assert len(validation_calls) == 1
 
 
-def test_cache_recomputes_when_validation_returns_false() -> None:
+async def test_cache_recomputes_when_validation_returns_false() -> None:
     counter = collect_call_counter()
 
     def validation(*_: Any) -> bool:
         return False
 
     @redis_cache_decorator(validation_func=validation)
-    def produce() -> int:
+    async def produce() -> int:
         counter["count"] += 1
         return counter["count"]
 
-    assert produce() == 1
-    assert produce() == 2
+    assert await produce() == 1
+    assert await produce() == 2
     assert counter["count"] == 2
 
 
-def test_cache_validation_errors_respected_when_not_ignored() -> None:
+async def test_cache_validation_errors_respected_when_not_ignored() -> None:
     def validation(*_: Any) -> bool:
         raise RuntimeError("invalid")
 
     @redis_cache_decorator(validation_func=validation, ignore_validation_error=False)
-    def creator() -> int:
+    async def creator() -> int:
         return 1
 
-    assert creator() == 1
+    assert await creator() == 1
     with pytest.raises(RuntimeError):
-        creator()
+        await creator()
 
 
-def test_cache_validation_errors_suppressed_by_default() -> None:
+async def test_cache_validation_errors_suppressed_by_default() -> None:
     counter = collect_call_counter()
 
     def validation(*_: Any) -> bool:
         raise RuntimeError("validation failed")
 
     @redis_cache_decorator(validation_func=validation)
-    def generator() -> int:
+    async def generator() -> int:
         counter["count"] += 1
         return counter["count"]
 
-    assert generator() == 1
-    assert generator() == 2
+    assert await generator() == 1
+    assert await generator() == 2
     assert counter["count"] == 2
 
 
-def test_cache_respects_positive_ttl() -> None:
-    redis_client = get_redis_sync_client()
+async def test_cache_respects_positive_ttl() -> None:
+    redis_client = get_redis_client()
     counter = collect_call_counter()
 
     @redis_cache_decorator(ttl=1.0)
-    def target() -> int:
+    async def target() -> int:
         counter["count"] += 1
         return counter["count"]
 
-    assert target() == 1
+    assert await target() == 1
     key = target.cache_key_for()
-    ttl_ms = redis_client.pttl(key)
+    ttl_ms = await redis_client.pttl(key)
     assert ttl_ms is not None and ttl_ms > 0
-    assert target() == 1
-    time.sleep(1.2)
-    assert target() == 2
+    assert await target() == 1
+    await asyncio.sleep(1.2)
+    assert await target() == 2
 
 
-def test_cache_skips_storage_when_ttl_non_positive() -> None:
+async def test_cache_skips_storage_when_ttl_non_positive() -> None:
     counter = collect_call_counter()
 
     @redis_cache_decorator(ttl=0)
-    def target() -> int:
+    async def target() -> int:
         counter["count"] += 1
         return counter["count"]
 
-    assert target() == 1
-    assert target() == 2
+    assert await target() == 1
+    assert await target() == 2
     assert counter["count"] == 2
-    assert not decode_keys()
+    assert not await decode_keys()
 
 
-def test_cache_accepts_custom_serializer() -> None:
+async def test_cache_accepts_custom_serializer() -> None:
     dumps_calls = {"count": 0}
     loads_calls = {"count": 0}
 
@@ -211,47 +212,47 @@ def test_cache_accepts_custom_serializer() -> None:
         return json.loads(blob.decode())
 
     @redis_cache_decorator(serializer=dumps, deserializer=loads)
-    def echo(value: int) -> int:
+    async def echo(value: int) -> int:
         return value
 
-    assert echo(8) == 8
-    assert echo(8) == 8
+    assert await echo(8) == 8
+    assert await echo(8) == 8
     assert dumps_calls["count"] == 1
     assert loads_calls["count"] == 1
 
 
-def test_cache_recomputes_when_serializer_returns_non_bytes() -> None:
+async def test_cache_recomputes_when_serializer_returns_non_bytes() -> None:
     counter = collect_call_counter()
 
     def bad_serializer(_: Any) -> str:
         return "not-bytes"
 
     @redis_cache_decorator(serializer=bad_serializer)
-    def value() -> int:
+    async def value() -> int:
         counter["count"] += 1
         return counter["count"]
 
-    assert value() == 1
-    assert value() == 2
+    assert await value() == 1
+    assert await value() == 2
     assert counter["count"] == 2
 
 
-def test_cache_helper_methods_expose_cache_controls() -> None:
+async def test_cache_helper_methods_expose_cache_controls() -> None:
     @redis_cache_decorator()
-    def work(value: int) -> int:
+    async def work(value: int) -> int:
         return value * 3
 
-    result = work(5)
+    result = await work(5)
     assert result == 15
 
-    assert work.is_cached(5)
-    assert work.has_valid_value(5)
-    timestamp = work.get_cached_timestamp(5)
+    assert await work.is_cached(5)
+    assert await work.has_valid_value(5)
+    timestamp = await work.get_cached_timestamp(5)
     assert isinstance(timestamp, float)
 
-    assert work.invalidate(5) == 1
-    assert not work.is_cached(5)
-    assert work.invalidate_all() >= 0
+    assert await work.invalidate(5) == 1
+    assert not await work.is_cached(5)
+    assert await work.invalidate_all() >= 0
 
     settings = get_settings()
     assert work.cache_instance.prefix == settings.CACHE_PREFIX
@@ -262,47 +263,44 @@ def test_cache_helper_methods_expose_cache_controls() -> None:
     assert work.cache_namespace == expected_namespace
 
 
-def test_cache_invalidate_all_removes_each_entry() -> None:
+async def test_cache_invalidate_all_removes_each_entry() -> None:
     @redis_cache_decorator(namespace="batch")
-    def fn(value: int) -> int:
+    async def fn(value: int) -> int:
         return value * 10
 
-    assert fn(1) == 10
-    assert fn(2) == 20
-    assert len(decode_keys()) == 2
-    assert fn.invalidate_all() == 2
-    assert not decode_keys()
+    assert await fn(1) == 10
+    assert await fn(2) == 20
+    assert len(await decode_keys()) == 2
+    assert await fn.invalidate_all() == 2
+    assert not await decode_keys()
 
 
-def test_cache_concurrent_calls_share_computation() -> None:
+async def test_cache_concurrent_calls_share_computation() -> None:
     counter = collect_call_counter()
-    started = threading.Event()
-    release = threading.Event()
+    started = asyncio.Event()
+    release = asyncio.Event()
     results: list[int] = []
     errors: list[Exception] = []
 
     @redis_cache_decorator(concurrent_max_wait_time=1.0, concurrent_check_interval=0.01)
-    def slow(value: int) -> int:
+    async def slow(value: int) -> int:
         counter["count"] += 1
         started.set()
-        release.wait(timeout=1)
+        await release.wait()
         return value * 4
 
-    def worker() -> None:
+    async def worker() -> None:
         try:
-            results.append(slow(5))
+            results.append(await slow(5))
         except Exception as exc:  # pragma: no cover - defensive branch
             errors.append(exc)
 
-    first = threading.Thread(target=worker)
-    second = threading.Thread(target=worker)
-    first.start()
-    started.wait(timeout=0.2)
-    second.start()
-    time.sleep(0.05)
+    first = asyncio.create_task(worker())
+    await asyncio.wait_for(started.wait(), timeout=0.5)
+    second = asyncio.create_task(worker())
+    await asyncio.sleep(0.05)
     release.set()
-    first.join()
-    second.join()
+    await asyncio.gather(first, second)
 
     assert not errors
     assert counter["count"] == 1
@@ -310,12 +308,12 @@ def test_cache_concurrent_calls_share_computation() -> None:
     assert all(value == 20 for value in results)
 
 
-def test_cache_key_for_matches_storage() -> None:
+async def test_cache_key_for_matches_storage() -> None:
     @redis_cache_decorator(namespace="keys")
-    def fn(value: int, *, flag: str) -> str:
+    async def fn(value: int, *, flag: str) -> str:
         return f"{value}:{flag}"
 
-    assert fn(3, flag="on") == "3:on"
+    assert await fn(3, flag="on") == "3:on"
     key = fn.cache_key_for(3, flag="on")
-    stored_keys = decode_keys()
+    stored_keys = await decode_keys()
     assert key in stored_keys

@@ -1,16 +1,18 @@
+import asyncio
 import copy
 import hashlib
+import inspect
 import math
 import pickle
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, TypedDict, TypeVar, cast
 
-from redis import Redis
+from redis.asyncio import Redis
 
-from src.core.cache.client import get_redis_sync_client
+from src.core.cache.client import get_redis_client
 from src.core.config import get_settings
 
 settings = get_settings()
@@ -27,7 +29,7 @@ KeySerializer = Callable[[tuple[Any, ...], dict[str, Any]], str]
 ValidationFunction = Callable[[tuple[Any, ...], dict[str, Any], CacheResponse], bool]
 
 
-FuncType = TypeVar("FuncType", bound=Callable[..., Any])
+FuncType = TypeVar("FuncType", bound=Callable[..., Awaitable[Any]])
 
 
 def _gen_key(obj: Any) -> str:
@@ -115,6 +117,9 @@ class RedisCache:
         )
 
         def decorator(func: FuncType) -> FuncType:
+            if not inspect.iscoroutinefunction(func):
+                raise TypeError("RedisCache only supports async callables.")
+
             resolved_namespace = namespace or f"{func.__module__}.{func.__qualname__}"
             base_components = [
                 component for component in (self.prefix, resolved_namespace) if component
@@ -143,20 +148,20 @@ class RedisCache:
                 cache_key = ":".join([key_prefix, hashed]) if hashed else key_prefix
                 return cache_key, filtered_args, filtered_kwargs
 
-            def _load_cached_response(cache_key: str) -> CacheResponse | None:
+            async def _load_cached_response(cache_key: str) -> CacheResponse | None:
                 try:
-                    raw_value = self.client.get(cache_key)
+                    raw_value = await self.client.get(cache_key)
                 except Exception:
                     return None
 
                 if raw_value is None:
                     return None
 
-                if not isinstance(raw_value, bytes):
+                if not isinstance(raw_value, (bytes, bytearray)):
                     return None
 
                 try:
-                    cached_value = deserializer(raw_value)
+                    cached_value = deserializer(bytes(raw_value))
                 except Exception:
                     if ignore_validation_error:
                         return None
@@ -170,7 +175,7 @@ class RedisCache:
 
                 return cast(CacheResponse, cached_value)
 
-            def _resolve_cached_value(
+            async def _resolve_cached_value(
                 call_args: tuple[Any, ...],
                 call_kwargs: dict[str, Any],
                 *,
@@ -180,7 +185,7 @@ class RedisCache:
                 if cache_key_local is None:
                     cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
 
-                cached_response = _load_cached_response(cache_key_local)
+                cached_response = await _load_cached_response(cache_key_local)
                 if cached_response is None:
                     return None
 
@@ -196,20 +201,21 @@ class RedisCache:
 
                 return None
 
-            def _invalidate(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> int:
+            async def _invalidate(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> int:
                 cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
                 try:
-                    return int(self.client.delete(cache_key_local) or 0)  # type: ignore[arg-type]
+                    deleted = await self.client.delete(cache_key_local)
                 except Exception:
                     if ignore_validation_error:
                         return 0
                     raise
+                return int(deleted or 0)
 
-            def _get_cached_timestamp(
+            async def _get_cached_timestamp(
                 call_args: tuple[Any, ...], call_kwargs: dict[str, Any]
             ) -> float | int | None:
                 cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
-                cached_response = _load_cached_response(cache_key_local)
+                cached_response = await _load_cached_response(cache_key_local)
                 if cached_response is None:
                     return None
 
@@ -222,19 +228,19 @@ class RedisCache:
 
                 raise TypeError(f"Invalid cache timestamp type: {type(timestamp)}")
 
-            def _invalidate_all() -> int:
+            async def _invalidate_all() -> int:
                 pattern = f"{key_prefix}:*"
                 deleted = 0
                 batch: list[Any] = []
 
                 try:
-                    for cache_key in self.client.scan_iter(pattern):
+                    async for cache_key in self.client.scan_iter(pattern):
                         batch.append(cache_key)
                         if len(batch) >= 128:
-                            deleted += int(self.client.delete(*batch) or 0)  # type: ignore[arg-type]
+                            deleted += int(await self.client.delete(*batch) or 0)
                             batch.clear()
                     if batch:
-                        deleted += int(self.client.delete(*batch) or 0)  # type: ignore[arg-type]
+                        deleted += int(await self.client.delete(*batch) or 0)
                 except Exception:
                     if ignore_validation_error:
                         return deleted
@@ -242,24 +248,30 @@ class RedisCache:
 
                 return deleted
 
-            def _is_cached(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> bool:
+            async def _is_cached(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> bool:
                 cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
                 try:
-                    return bool(self.client.exists(cache_key_local))
+                    result = await self.client.exists(cache_key_local)
                 except Exception:
                     if ignore_validation_error:
                         return False
                     raise
+                return bool(result)
 
-            def _has_valid_value(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> bool:
-                return _resolve_cached_value(call_args, call_kwargs) is not None
+            async def _has_valid_value(
+                call_args: tuple[Any, ...], call_kwargs: dict[str, Any]
+            ) -> bool:
+                cached = await _resolve_cached_value(call_args, call_kwargs)
+                return cached is not None
 
             @wraps(func)
-            def wrapper(*args: Any, **kwargs: Any) -> Any:
+            async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 cache_key, key_args, key_kwargs = _build_cache_key(args, kwargs)
                 lock_key = f"{cache_key}:lock"
 
-                cached_result = _resolve_cached_value(args, kwargs, precomputed_cache_key=cache_key)
+                cached_result = await _resolve_cached_value(
+                    args, kwargs, precomputed_cache_key=cache_key
+                )
                 if cached_result is not None:
                     return cached_result
 
@@ -270,14 +282,14 @@ class RedisCache:
                     lock_ttl = max(int(math.ceil(concurrent_max_wait_time)), 1)
 
                     while time.monotonic() < deadline:
-                        cached_result = _resolve_cached_value(
+                        cached_result = await _resolve_cached_value(
                             args, kwargs, precomputed_cache_key=cache_key
                         )
                         if cached_result is not None:
                             return cached_result
 
                         try:
-                            acquired = self.client.set(lock_key, b"1", nx=True, ex=lock_ttl)
+                            acquired = await self.client.set(lock_key, b"1", nx=True, ex=lock_ttl)
                         except Exception:
                             acquired = False
 
@@ -285,21 +297,21 @@ class RedisCache:
                             have_lock = True
                             break
 
-                        time.sleep(effective_check_interval)
+                        await asyncio.sleep(effective_check_interval)
 
                     if not have_lock:
-                        cached_result = _resolve_cached_value(
+                        cached_result = await _resolve_cached_value(
                             args, kwargs, precomputed_cache_key=cache_key
                         )
                         if cached_result is not None:
                             return cached_result
 
                 try:
-                    result = func(*args, **kwargs)
+                    result = await func(*args, **kwargs)
                 except Exception:
                     if have_lock:
                         try:
-                            self.client.delete(lock_key)
+                            await self.client.delete(lock_key)
                         except Exception:
                             pass
                     raise
@@ -310,7 +322,7 @@ class RedisCache:
                     if ttl_seconds <= 0:
                         if have_lock:
                             try:
-                                self.client.delete(lock_key)
+                                await self.client.delete(lock_key)
                             except Exception:
                                 pass
                         return result
@@ -333,38 +345,46 @@ class RedisCache:
                     if not isinstance(serialized, (bytes, bytearray)):
                         raise TypeError("Serializer must return bytes-like object.")
 
-                    self.client.set(cache_key, serialized, **ttl_kwargs)
+                    await self.client.set(cache_key, serialized, **ttl_kwargs)
                 except Exception:
                     if not ignore_validation_error:
                         raise
                 finally:
                     if have_lock:
                         try:
-                            self.client.delete(lock_key)
+                            await self.client.delete(lock_key)
                         except Exception:
                             pass
 
                 return result
 
-            wrapper.invalidate = lambda *call_args, **call_kwargs: _invalidate(  # type: ignore[attr-defined]
-                call_args, call_kwargs
-            )
-            wrapper.invalidate_all = lambda: _invalidate_all()  # type: ignore[attr-defined]
-            wrapper.is_cached = lambda *call_args, **call_kwargs: _is_cached(  # type: ignore[attr-defined]
-                call_args, call_kwargs
-            )
-            wrapper.has_valid_value = lambda *call_args, **call_kwargs: _has_valid_value(  # type: ignore[attr-defined]
-                call_args, call_kwargs
-            )
-            wrapper.get_cached_timestamp = lambda *call_args, **call_kwargs: _get_cached_timestamp(  # type: ignore[attr-defined]
-                call_args, call_kwargs
-            )
+            async def invalidate(*call_args: Any, **call_kwargs: Any) -> int:
+                return await _invalidate(call_args, call_kwargs)
+
+            async def invalidate_all() -> int:
+                return await _invalidate_all()
+
+            async def is_cached(*call_args: Any, **call_kwargs: Any) -> bool:
+                return await _is_cached(call_args, call_kwargs)
+
+            async def has_valid_value(*call_args: Any, **call_kwargs: Any) -> bool:
+                return await _has_valid_value(call_args, call_kwargs)
+
+            async def get_cached_timestamp(
+                *call_args: Any, **call_kwargs: Any
+            ) -> float | int | None:
+                return await _get_cached_timestamp(call_args, call_kwargs)
+
+            def cache_key_for(*call_args: Any, **call_kwargs: Any) -> str:
+                return _build_cache_key(call_args, call_kwargs)[0]
+
+            wrapper.invalidate = invalidate  # type: ignore[attr-defined]
+            wrapper.invalidate_all = invalidate_all  # type: ignore[attr-defined]
+            wrapper.is_cached = is_cached  # type: ignore[attr-defined]
+            wrapper.has_valid_value = has_valid_value  # type: ignore[attr-defined]
+            wrapper.get_cached_timestamp = get_cached_timestamp  # type: ignore[attr-defined]
             wrapper.cache_instance = self  # type: ignore[attr-defined]
-            wrapper.cache_key_for = lambda *call_args, **call_kwargs: _build_cache_key(  # type: ignore[attr-defined]
-                call_args, call_kwargs
-            )[
-                0
-            ]
+            wrapper.cache_key_for = cache_key_for  # type: ignore[attr-defined]
             wrapper.cache_namespace = resolved_namespace  # type: ignore[attr-defined]
 
             return cast(FuncType, wrapper)
@@ -373,7 +393,7 @@ class RedisCache:
 
 
 def get_local_redis_cache() -> RedisCache:
-    return RedisCache(get_redis_sync_client(), prefix=settings.CACHE_PREFIX)
+    return RedisCache(get_redis_client(), prefix=settings.CACHE_PREFIX)
 
 
 def redis_cache_decorator(

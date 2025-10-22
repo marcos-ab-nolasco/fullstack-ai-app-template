@@ -103,7 +103,7 @@ async def list_providers(
 ) -> AIProviderList:
     """Expose configured AI providers for the frontend UI."""
 
-    providers = list_ai_providers()
+    providers = await list_ai_providers()
     return AIProviderList(providers=providers)
 
 
