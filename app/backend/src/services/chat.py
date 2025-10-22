@@ -106,7 +106,7 @@ async def create_conversation(
     )
 
     # Invalidate cache for user's conversation list
-    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
 
     return new_conversation
 
@@ -139,7 +139,7 @@ async def update_conversation(
     await db.refresh(conversation)
 
     # Invalidate cache for user's conversation list (updated_at changed, affects ordering)
-    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
 
     return conversation
 
@@ -163,7 +163,7 @@ async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: 
     logger.info(f"Conversation deleted: conv_id={conversation_id} user_id={user_id}")
 
     # Invalidate cache for user's conversation list
-    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
 
 
 @redis_cache_decorator(
@@ -284,6 +284,8 @@ async def create_message(
     await db.refresh(assistant_message)
 
     # Invalidate cache for conversation messages (2 new messages added)
-    get_conversation_messages.invalidate(db, conversation_id, user_id)  # type: ignore[attr-defined]
+    await get_conversation_messages.invalidate(  # type: ignore[attr-defined]
+        db, conversation_id, user_id
+    )
 
     return user_message, assistant_message
