@@ -116,7 +116,7 @@ export const useAuthStore = create<AuthState>()(
           setRefreshTokenCallback(async () => {
             await get().refreshAuth();
           });
-        } catch (_error) {
+        } catch {
           // Session not available; ensure clean state
           clearAuthToken();
           set({ user: null, accessToken: null, isAuthenticated: false });

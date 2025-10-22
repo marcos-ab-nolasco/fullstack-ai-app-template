@@ -17,6 +17,7 @@ from src.core.auth.session import (
 )
 from src.core.config import get_settings
 from src.core.dependencies import get_current_user
+from src.core.rate_limit import limiter
 from src.core.security import create_access_token, hash_password, verify_password
 from src.db.models.user import User
 from src.db.session import get_db
@@ -32,7 +33,9 @@ settings = get_settings()
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     user_data: UserCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
@@ -65,7 +68,9 @@ async def register(
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     credentials: Annotated[HTTPBasicCredentials, Depends(basic_auth_scheme)],
     db: Annotated[AsyncSession, Depends(get_db)],
     response: Response,
