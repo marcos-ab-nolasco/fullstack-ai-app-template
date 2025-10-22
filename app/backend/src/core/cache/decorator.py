@@ -1,35 +1,43 @@
-from typing import Any, Callable, Optional, TypeVar, Union, TypedDict, cast
-from src.core.cache.client import get_redis_sync_client
-from functools import wraps
-import pickle
-from redis import Redis
 import copy
-from src.core.config import get_settings
 import hashlib
-from collections import OrderedDict
-import time
 import math
+import pickle
+import time
+from collections import OrderedDict
+from collections.abc import Callable
+from functools import wraps
+from typing import Any, TypedDict, TypeVar, cast
+
+from redis import Redis
+
+from src.core.cache.client import get_redis_sync_client
+from src.core.config import get_settings
+
 settings = get_settings()
 
+
 class CacheResponse(TypedDict):
-    timestamp: Union[float, int]
+    timestamp: float | int
     value: Any
     parameters: Any
+
 
 _DEFAULT_CONCURRENT_CHECK_INTERVAL: float = 0.05
 KeySerializer = Callable[[tuple[Any, ...], dict[str, Any]], str]
 ValidationFunction = Callable[[tuple[Any, ...], dict[str, Any], CacheResponse], bool]
-    
 
 
 FuncType = TypeVar("FuncType", bound=Callable[..., Any])
 
+
 def _gen_key(obj: Any) -> str:
     return f"{type(obj)}_{obj}"
+
 
 def _sorted_by_keys(dict_: dict[Any, Any]) -> dict[Any, Any]:
     sorted_keys = sorted(dict_.keys(), key=_gen_key)
     return {key: dict_[key] for key in sorted_keys}
+
 
 def _sort_dicts(
     obj: Any,
@@ -47,17 +55,20 @@ def _sort_dicts(
         obj.clear()
         obj.update(tmp)
 
+
 def sorted_dicts_args(args: tuple[Any, ...]) -> tuple[Any, ...]:
     args_copy = copy.deepcopy(args)
     for arg in args_copy:
         _sort_dicts(arg)
     return args_copy
 
+
 def sorted_dicts(dict_: dict[str, Any]) -> dict[str, Any]:
     sorted_dict = _sorted_by_keys(copy.deepcopy(dict_))
     for value in sorted_dict.values():
         _sort_dicts(value)
     return sorted_dict
+
 
 def hash_key(
     args: tuple[Any, ...],
@@ -70,11 +81,10 @@ def hash_key(
     return hashlib.sha256(s.encode()).hexdigest()
 
 
-
 class RedisCache:
     def __init__(
         self,
-        redis_client: "Redis[Any]",
+        redis_client: Redis,
         *,
         prefix: str = "rc",
     ) -> None:
@@ -84,14 +94,14 @@ class RedisCache:
     def cache(
         self,
         *,
-        ignore_positionals: Optional[list[int]] = None,
-        ignore_kw: Optional[list[str]] = None,
-        validation_func: Optional[ValidationFunction] = None,
-        ttl: Optional[float] = None,
+        ignore_positionals: list[int] | None = None,
+        ignore_kw: list[str] | None = None,
+        validation_func: ValidationFunction | None = None,
+        ttl: float | None = None,
         serializer: Callable[[Any], bytes] = pickle.dumps,
         deserializer: Callable[[bytes], Any] = pickle.loads,
         key_serializer: KeySerializer = hash_key,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         ignore_validation_error: bool = True,
         concurrent_max_wait_time: float = 0,
         concurrent_check_interval: float = _DEFAULT_CONCURRENT_CHECK_INTERVAL,
@@ -99,19 +109,25 @@ class RedisCache:
         ignore_positionals_set = set(ignore_positionals or [])
         ignore_kw_set = set(ignore_kw or [])
         effective_check_interval = (
-            concurrent_check_interval if concurrent_check_interval > 0 else _DEFAULT_CONCURRENT_CHECK_INTERVAL
+            concurrent_check_interval
+            if concurrent_check_interval > 0
+            else _DEFAULT_CONCURRENT_CHECK_INTERVAL
         )
 
         def decorator(func: FuncType) -> FuncType:
             resolved_namespace = namespace or f"{func.__module__}.{func.__qualname__}"
-            base_components = [component for component in (self.prefix, resolved_namespace) if component]
+            base_components = [
+                component for component in (self.prefix, resolved_namespace) if component
+            ]
             key_prefix = ":".join(base_components)
 
-            def _normalize_parameters(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> tuple[
-                tuple[Any, ...], dict[str, Any]
-            ]:
+            def _normalize_parameters(
+                call_args: tuple[Any, ...], call_kwargs: dict[str, Any]
+            ) -> tuple[tuple[Any, ...], dict[str, Any]]:
                 filtered_args = tuple(
-                    value for index, value in enumerate(call_args) if index not in ignore_positionals_set
+                    value
+                    for index, value in enumerate(call_args)
+                    if index not in ignore_positionals_set
                 )
                 filtered_kwargs = {
                     key: value for key, value in call_kwargs.items() if key not in ignore_kw_set
@@ -127,13 +143,16 @@ class RedisCache:
                 cache_key = ":".join([key_prefix, hashed]) if hashed else key_prefix
                 return cache_key, filtered_args, filtered_kwargs
 
-            def _load_cached_response(cache_key: str) -> Optional[CacheResponse]:
+            def _load_cached_response(cache_key: str) -> CacheResponse | None:
                 try:
                     raw_value = self.client.get(cache_key)
                 except Exception:
                     return None
 
                 if raw_value is None:
+                    return None
+
+                if not isinstance(raw_value, bytes):
                     return None
 
                 try:
@@ -155,8 +174,8 @@ class RedisCache:
                 call_args: tuple[Any, ...],
                 call_kwargs: dict[str, Any],
                 *,
-                precomputed_cache_key: Optional[str] = None,
-            ) -> Optional[Any]:
+                precomputed_cache_key: str | None = None,
+            ) -> Any | None:
                 cache_key_local = precomputed_cache_key
                 if cache_key_local is None:
                     cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
@@ -166,7 +185,9 @@ class RedisCache:
                     return None
 
                 try:
-                    if validation_func is None or validation_func(call_args, call_kwargs, cached_response):
+                    if validation_func is None or validation_func(
+                        call_args, call_kwargs, cached_response
+                    ):
                         return cached_response["value"]
                 except Exception:
                     if not ignore_validation_error:
@@ -178,13 +199,15 @@ class RedisCache:
             def _invalidate(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> int:
                 cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
                 try:
-                    return int(self.client.delete(cache_key_local) or 0)
+                    return int(self.client.delete(cache_key_local) or 0)  # type: ignore[arg-type]
                 except Exception:
                     if ignore_validation_error:
                         return 0
                     raise
 
-            def _get_cached_timestamp(call_args: tuple[Any, ...], call_kwargs: dict[str, Any]) -> Optional[Union[float, int]]:
+            def _get_cached_timestamp(
+                call_args: tuple[Any, ...], call_kwargs: dict[str, Any]
+            ) -> float | int | None:
                 cache_key_local, _, _ = _build_cache_key(call_args, call_kwargs)
                 cached_response = _load_cached_response(cache_key_local)
                 if cached_response is None:
@@ -208,10 +231,10 @@ class RedisCache:
                     for cache_key in self.client.scan_iter(pattern):
                         batch.append(cache_key)
                         if len(batch) >= 128:
-                            deleted += int(self.client.delete(*batch) or 0)
+                            deleted += int(self.client.delete(*batch) or 0)  # type: ignore[arg-type]
                             batch.clear()
                     if batch:
-                        deleted += int(self.client.delete(*batch) or 0)
+                        deleted += int(self.client.delete(*batch) or 0)  # type: ignore[arg-type]
                 except Exception:
                     if ignore_validation_error:
                         return deleted
@@ -339,67 +362,49 @@ class RedisCache:
             wrapper.cache_instance = self  # type: ignore[attr-defined]
             wrapper.cache_key_for = lambda *call_args, **call_kwargs: _build_cache_key(  # type: ignore[attr-defined]
                 call_args, call_kwargs
-            )[0]
+            )[
+                0
+            ]
             wrapper.cache_namespace = resolved_namespace  # type: ignore[attr-defined]
 
             return cast(FuncType, wrapper)
 
         return decorator
 
+
 def get_local_redis_cache() -> RedisCache:
     return RedisCache(get_redis_sync_client(), prefix=settings.CACHE_PREFIX)
 
 
 def redis_cache_decorator(
-    ignore_positionals: Optional[list[int]] = None,
-    ignore_kw: Optional[list[str]] = None,
-    validation_func: Optional[ValidationFunction] = None,
-    ttl: Optional[float] = None,
+    ignore_positionals: list[int] | None = None,
+    ignore_kw: list[str] | None = None,
+    validation_func: ValidationFunction | None = None,
+    ttl: float | None = None,
     serializer: Callable[[Any], bytes] = pickle.dumps,
     deserializer: Callable[[bytes], Any] = pickle.loads,
     key_serializer: KeySerializer = hash_key,
-    namespace: Optional[str] = None,
+    namespace: str | None = None,
     ignore_validation_error: bool = True,
     concurrent_max_wait_time: float = 0,
     concurrent_check_interval: float = _DEFAULT_CONCURRENT_CHECK_INTERVAL,
 ) -> Callable[[FuncType], FuncType]:
-    """
-    Usage example:
-        ```
-        ...
-        
-        @classmethod
-        @redis_cache_decorator(
-            # key_serializer=helpers.consume_key_serializer, #  situacional
-            ttl=settings.CACHE_TTL_RATE_LIMITS,
-            namespace=settings.CACHE_NAMESPACE_RATE_LIMITS,
-            validation_func=validation_limits,
-            serializer=custom_serializer,
-            ignore_positionals=[0],
-            ignore_kw=["cls"],
-        )
-        def read_rate_limit(cls, request_data: ConsumeParameters) -> schemas.GetRateLimitsResponse:
-        ...
-    """
     def decorator(func: FuncType) -> FuncType:
-        @wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            cache = get_local_redis_cache()
-            cached_func = cache.cache(
-                ignore_positionals=ignore_positionals,
-                ignore_kw=ignore_kw,
-                validation_func=validation_func,
-                ttl=ttl,
-                serializer=serializer,
-                deserializer=deserializer,
-                key_serializer=key_serializer,
-                namespace=namespace,
-                ignore_validation_error=ignore_validation_error,
-                concurrent_max_wait_time=concurrent_max_wait_time,
-                concurrent_check_interval=concurrent_check_interval,
-            )(func)
-            return cached_func(*args, **kwargs)
+        cache = get_local_redis_cache()
+        cached_func = cache.cache(
+            ignore_positionals=ignore_positionals,
+            ignore_kw=ignore_kw,
+            validation_func=validation_func,
+            ttl=ttl,
+            serializer=serializer,
+            deserializer=deserializer,
+            key_serializer=key_serializer,
+            namespace=namespace,
+            ignore_validation_error=ignore_validation_error,
+            concurrent_max_wait_time=concurrent_max_wait_time,
+            concurrent_check_interval=concurrent_check_interval,
+        )(func)
 
-        return wrapper  # type: ignore[return-value]
+        return cached_func
 
     return decorator

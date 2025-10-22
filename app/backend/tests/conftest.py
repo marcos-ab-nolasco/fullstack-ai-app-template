@@ -1,8 +1,8 @@
-from fakeredis import FakeRedis
 from pathlib import Path
 from unittest.mock import patch
 
 from dotenv import load_dotenv
+from fakeredis import FakeRedis
 
 root_path = Path(__file__).parent
 print(f"Loading test environment from: {root_path / '.env.test'}")

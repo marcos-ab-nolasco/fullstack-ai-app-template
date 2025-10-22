@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.db.session import get_engine
 from src.core.cache.client import get_redis_sync_client
+from src.db.session import get_engine
 
 # from path/to/client import get_redis_client
 
