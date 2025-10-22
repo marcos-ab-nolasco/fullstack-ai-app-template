@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { components } from "@/types/api";
 
@@ -13,7 +13,7 @@ interface ConversationItemProps {
   onDelete: () => void;
 }
 
-export function ConversationItem({
+export const ConversationItem = memo(function ConversationItem({
   conversation,
   isActive,
   onSelect,
@@ -21,8 +21,9 @@ export function ConversationItem({
 }: ConversationItemProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
+  // Memoize date formatting to avoid recalculation
+  const formattedDate = useMemo(() => {
+    const date = new Date(conversation.updated_at);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffDays = Math.floor(diffMs / 86400000);
@@ -36,19 +37,23 @@ export function ConversationItem({
       month: "2-digit",
       year: "numeric",
     });
-  };
+  }, [conversation.updated_at]);
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (showDeleteConfirm) {
-      onDelete();
-      setShowDeleteConfirm(false);
-    } else {
-      setShowDeleteConfirm(true);
-      // Auto-hide confirmation after 3 seconds
-      setTimeout(() => setShowDeleteConfirm(false), 3000);
-    }
-  };
+  // Memoize handleDelete to maintain reference stability
+  const handleDelete = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (showDeleteConfirm) {
+        onDelete();
+        setShowDeleteConfirm(false);
+      } else {
+        setShowDeleteConfirm(true);
+        // Auto-hide confirmation after 3 seconds
+        setTimeout(() => setShowDeleteConfirm(false), 3000);
+      }
+    },
+    [showDeleteConfirm, onDelete]
+  );
 
   return (
     <div
@@ -74,7 +79,7 @@ export function ConversationItem({
         </h3>
 
         <div className="flex items-center gap-2 mt-1">
-          <span className="text-xs text-gray-500">{formatDate(conversation.updated_at)}</span>
+          <span className="text-xs text-gray-500">{formattedDate}</span>
           <span className="text-xs text-gray-400">•</span>
           <span className="text-xs text-gray-500 font-mono">{conversation.ai_provider}</span>
         </div>
@@ -145,4 +150,4 @@ export function ConversationItem({
       )}
     </div>
   );
-}
+});
