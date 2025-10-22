@@ -1,4 +1,4 @@
-from typing import Any, Callable, Optional, TypeVar, Union, TypedDict
+from typing import Any, Callable, Optional, TypeVar, Union, TypedDict, cast
 from src.core.cache.client import get_redis_sync_client
 from functools import wraps
 import pickle
@@ -7,6 +7,8 @@ import copy
 from src.core.config import get_settings
 import hashlib
 from collections import OrderedDict
+import time
+import math
 settings = get_settings()
 
 class CacheResponse(TypedDict):
@@ -93,9 +95,153 @@ class RedisCache:
         ignore_validation_error: bool = True,
         concurrent_max_wait_time: float = 0,
         concurrent_check_interval: float = _DEFAULT_CONCURRENT_CHECK_INTERVAL,
-    ):
-        # TODO: Implement caching logic here; maybe returns an instance of another class with
-        pass
+    ) -> Callable[[FuncType], FuncType]:
+        ignore_positionals_set = set(ignore_positionals or [])
+        ignore_kw_set = set(ignore_kw or [])
+        effective_check_interval = (
+            concurrent_check_interval if concurrent_check_interval > 0 else _DEFAULT_CONCURRENT_CHECK_INTERVAL
+        )
+
+        def decorator(func: FuncType) -> FuncType:
+            @wraps(func)
+            def wrapper(*args: Any, **kwargs: Any) -> Any:
+                key_args = tuple(
+                    value for index, value in enumerate(args) if index not in ignore_positionals_set
+                )
+                key_kwargs = {key: value for key, value in kwargs.items() if key not in ignore_kw_set}
+
+                key_components = [self.prefix]
+                if namespace:
+                    key_components.append(namespace)
+                key_components.append(key_serializer(key_args, key_kwargs))
+                cache_key = ":".join(component for component in key_components if component)
+                lock_key = f"{cache_key}:lock"
+
+                def _load_cached_response() -> Optional[CacheResponse]:
+                    try:
+                        raw_value = self.client.get(cache_key)
+                    except Exception:
+                        return None
+
+                    if raw_value is None:
+                        return None
+
+                    try:
+                        cached_value = deserializer(raw_value)
+                    except Exception:
+                        if ignore_validation_error:
+                            return None
+                        raise
+
+                    if not isinstance(cached_value, dict):
+                        return None
+
+                    if "value" not in cached_value:
+                        return None
+
+                    return cast(CacheResponse, cached_value)
+
+                def _resolve_cached_value() -> Optional[Any]:
+                    cached_response = _load_cached_response()
+                    if cached_response is None:
+                        return None
+
+                    try:
+                        if validation_func is None or validation_func(args, kwargs, cached_response):
+                            return cached_response["value"]
+                    except Exception:
+                        if not ignore_validation_error:
+                            raise
+                        return None
+
+                    return None
+
+                cached_result = _resolve_cached_value()
+                if cached_result is not None:
+                    return cached_result
+
+                have_lock = False
+
+                if concurrent_max_wait_time > 0:
+                    deadline = time.monotonic() + concurrent_max_wait_time
+                    lock_ttl = max(int(math.ceil(concurrent_max_wait_time)), 1)
+
+                    while time.monotonic() < deadline:
+                        cached_result = _resolve_cached_value()
+                        if cached_result is not None:
+                            return cached_result
+
+                        try:
+                            acquired = self.client.set(lock_key, b"1", nx=True, ex=lock_ttl)
+                        except Exception:
+                            acquired = False
+
+                        if acquired:
+                            have_lock = True
+                            break
+
+                        time.sleep(effective_check_interval)
+
+                    if not have_lock:
+                        cached_result = _resolve_cached_value()
+                        if cached_result is not None:
+                            return cached_result
+
+                try:
+                    result = func(*args, **kwargs)
+                except Exception:
+                    if have_lock:
+                        try:
+                            self.client.delete(lock_key)
+                        except Exception:
+                            pass
+                    raise
+
+                ttl_kwargs: dict[str, Any] = {}
+                if ttl is not None:
+                    ttl_seconds = float(ttl)
+                    if ttl_seconds <= 0:
+                        if have_lock:
+                            try:
+                                self.client.delete(lock_key)
+                            except Exception:
+                                pass
+                        return result
+
+                    if ttl_seconds.is_integer():
+                        ttl_kwargs["ex"] = int(ttl_seconds)
+                    else:
+                        ttl_kwargs["px"] = max(int(ttl_seconds * 1000), 1)
+
+                cache_payload: CacheResponse = {
+                    "timestamp": time.time(),
+                    "value": result,
+                    "parameters": {"args": key_args, "kwargs": key_kwargs},
+                }
+
+                try:
+                    serialized = serializer(cache_payload)
+                    if isinstance(serialized, bytearray):
+                        serialized = bytes(serialized)
+                    if not isinstance(serialized, (bytes, bytearray)):
+                        raise TypeError("Serializer must return bytes-like object.")
+
+                    self.client.set(cache_key, serialized, **ttl_kwargs)
+                except Exception:
+                    if not ignore_validation_error:
+                        raise
+                finally:
+                    if have_lock:
+                        try:
+                            self.client.delete(lock_key)
+                        except Exception:
+                            pass
+
+                return result
+
+            return cast(FuncType, wrapper)
+
+        return decorator
 
 def get_local_redis_cache() -> RedisCache:
     return RedisCache(get_redis_sync_client(), prefix=settings.CACHE_PREFIX)
@@ -154,5 +300,3 @@ def redis_cache_decorator(
         return wrapper  # type: ignore[return-value]
 
     return decorator
-
-
