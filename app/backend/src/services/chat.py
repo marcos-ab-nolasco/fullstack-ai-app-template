@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.cache.decorator import redis_cache_decorator
 from src.db.models import Conversation, Message
 from src.schemas.chat import ConversationCreate, ConversationUpdate, MessageCreate
 from src.services.ai import get_ai_service
@@ -51,6 +52,11 @@ async def get_conversation_by_id(
     return conversation
 
 
+@redis_cache_decorator(
+    ttl=300,
+    ignore_positionals=[0],
+    namespace="chat.user_conversations",
+)
 async def get_user_conversations(db: AsyncSession, user_id: UUID) -> list[Conversation]:
     """Get all conversations for a user.
 
@@ -99,6 +105,9 @@ async def create_conversation(
         f"provider={conversation_data.ai_provider} model={conversation_data.ai_model}"
     )
 
+    # Invalidate cache for user's conversation list
+    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+
     return new_conversation
 
 
@@ -129,6 +138,9 @@ async def update_conversation(
     await db.commit()
     await db.refresh(conversation)
 
+    # Invalidate cache for user's conversation list (updated_at changed, affects ordering)
+    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+
     return conversation
 
 
@@ -150,7 +162,15 @@ async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: 
 
     logger.info(f"Conversation deleted: conv_id={conversation_id} user_id={user_id}")
 
+    # Invalidate cache for user's conversation list
+    get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
 
+
+@redis_cache_decorator(
+    ttl=300,
+    ignore_positionals=[0],
+    namespace="chat.conversation_messages",
+)
 async def get_conversation_messages(
     db: AsyncSession, conversation_id: UUID, user_id: UUID
 ) -> list[Message]:
@@ -262,5 +282,8 @@ async def create_message(
     db.add(assistant_message)
     await db.commit()
     await db.refresh(assistant_message)
+
+    # Invalidate cache for conversation messages (2 new messages added)
+    get_conversation_messages.invalidate(db, conversation_id, user_id)  # type: ignore[attr-defined]
 
     return user_message, assistant_message

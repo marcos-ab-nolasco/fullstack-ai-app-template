@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from src.core.cache.decorator import redis_cache_decorator
 from src.core.config import get_settings
 from src.schemas.chat import AIModelOption, AIProvider
 
@@ -64,6 +65,7 @@ def get_ai_service(provider: str) -> BaseAIService:
     raise ValueError(f"Unknown provider: {provider}")
 
 
+@redis_cache_decorator(ttl=3600, namespace="ai.providers")
 def list_ai_providers() -> list[AIProvider]:
     """Expose available AI providers with metadata."""
 
