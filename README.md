@@ -8,6 +8,16 @@ Template fullstack (FastAPI + Next.js) com foco em integrações de IA, pensado 
 - **Frontend:** Next.js 15 (App Router), React 19, Tailwind CSS, Vitest + Testing Library.
 - **Infra:** uv para gerenciar o virtualenv Python, pnpm para o frontend, Docker Compose para orquestração opcional, GitHub Actions para lint + testes.
 
+## Ajustando a stack (backend-only ou frontend-only)
+Nem todo projeto precisa das duas pontas. Para podar o template automaticamente e manter apenas a camada desejada, use:
+
+```bash
+python scripts/configure_template.py --mode backend   # remove tudo de frontend
+python scripts/configure_template.py --mode frontend  # remove tudo de backend
+```
+
+O script remove diretórios, atualiza o Makefile, o docker-compose e o workflow do GitHub Actions para evitar comandos quebrados. Após a execução, revise o `README.md` e os arquivos de ambiente para ajustar exemplos e documentação conforme o novo contexto.
+
 ## Pré-requisitos
 
 - Python 3.11 com `uv` instalado.
