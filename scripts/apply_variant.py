@@ -12,8 +12,8 @@ from typing import Iterable
 ROOT_DIR = Path(__file__).resolve().parent.parent
 KEEP_NAMES = {".git", ".gitmodules"}
 VARIANT_BRANCHES: dict[str, str] = {
-    "backend": "variants/backend-only",
-    "frontend": "variants/frontend-only",
+    "backend": "variant/backend",
+    "frontend": "variant/frontend",
 }
 
 
@@ -123,15 +123,21 @@ def main(argv: list[str]) -> int:
         return 1
 
     branch = args.branch or VARIANT_BRANCHES[args.variant]
+    checkout_ref = branch
     if not branch_exists(branch):
         fetch_branch(branch)
         if not branch_exists(branch):
-            print(f"Erro: branch '{branch}' não encontrada após git fetch.", file=sys.stderr)
-            return 1
+            remote_ref = f"origin/{branch}"
+            if branch_exists(remote_ref):
+                # Usa referência remota quando não há branch local após o fetch.
+                checkout_ref = remote_ref
+            else:
+                print(f"Erro: branch '{branch}' não encontrada após git fetch.", file=sys.stderr)
+                return 1
 
     tmpdir = None
     try:
-        tmpdir = checkout_variant(branch)
+        tmpdir = checkout_variant(checkout_ref)
         clean_root()
         copy_variant(tmpdir)
         print("\n✅ Variante aplicada com sucesso!")
